@@ -1,14 +1,11 @@
 const WAKE_API_URL = process.env.WAKE_API_URL;
 const WAKE_API_TOKEN = process.env.WAKE_API_TOKEN;
 
-<<<<<<< HEAD
-=======
 // Helper to format date dd/mm/yyyy - Wake might use a different format, verifying docs usually YYYY-MM-DD for filters
 function formatDate(date: Date): string {
     return date.toISOString().split('T')[0];
 }
 
->>>>>>> production-release
 export async function getWakeProducts() {
     if (!WAKE_API_URL || !WAKE_API_TOKEN) {
         return { error: "Missing Wake Credentials" };
@@ -47,8 +44,6 @@ export async function getWakeProducts() {
         return { error: `Fetch Failed to ${url}: ${error.message}` };
     }
 }
-<<<<<<< HEAD
-=======
 
 export async function getWakeOrders(startDate: string, endDate: string) {
     if (!WAKE_API_URL || !WAKE_API_TOKEN) {
@@ -85,4 +80,3 @@ export async function getWakeOrders(startDate: string, endDate: string) {
         return [];
     }
 }
->>>>>>> production-release

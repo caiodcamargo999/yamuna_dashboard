@@ -23,40 +23,6 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
         return [];
     }
 
-<<<<<<< HEAD
-    let url = `https://api.tiny.com.br/api2/pedidos.pesquisa.php?token=${TINY_TOKEN}&formato=json&situacao=aprovado`;
-
-    if (startDate) url += `&data_inicial=${formatDate(startDate)}`;
-    if (endDate) url += `&data_final=${formatDate(endDate)}`;
-
-    try {
-        const res = await fetch(url, { next: { revalidate: 300 } }); // Cache for 5min
-        const data = await res.json();
-
-        if (data.retorno.status === "Erro") {
-            return [];
-        }
-
-        const orders: TinyOrder[] = data.retorno.pedidos || [];
-
-        if (orders.length > 0) {
-            console.log("[Tiny Debug] First Order Structure:", JSON.stringify(orders[0], null, 2));
-        }
-
-        return orders.map((o: any) => ({
-            id: o.pedido?.id || "N/A",
-            date: o.pedido?.data_pedido || "",
-            total: o.pedido?.valor_total ?
-                parseFloat(o.pedido.valor_total.replace(/\./g, '').replace(',', '.')) : 0,
-            status: o.pedido?.situacao || "",
-            raw: { ...o, debug_total: o.pedido?.valor_total } // Log raw total to debug
-        }));
-
-    } catch (error) {
-        console.error("Error fetching Tiny data:", error);
-        return [];
-    }
-=======
     let allOrders: TinyOrder[] = [];
     let page = 1;
     let hasMore = true;
@@ -103,7 +69,6 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
         status: o.pedido?.situacao || "",
         raw: { ...o, debug_total: o.pedido?.valor_total }
     }));
->>>>>>> production-release
 }
 
 export async function getTinyProducts() {

@@ -35,6 +35,7 @@ export async function getGoogleAnalyticsData(startDate: string, endDate: string)
                     metrics: [
                         { name: "totalRevenue" },
                         { name: "transactions" },
+                        { name: "purchasers" }, // Compradores únicos
                     ],
                 },
             }),
@@ -84,6 +85,7 @@ export async function getGoogleAnalyticsData(startDate: string, endDate: string)
             sessions: parseInt(sessionsRow?.metricValues?.[0]?.value || "0"),
             totalRevenue: parseFloat(eventsRow?.metricValues?.[0]?.value || "0"),
             transactions: parseInt(eventsRow?.metricValues?.[1]?.value || "0"),
+            purchasers: parseInt(eventsRow?.metricValues?.[2]?.value || "0"), // Compradores únicos
             addToCarts: getEventCount("add_to_cart"),
             checkouts: getEventCount("begin_checkout"),
             itemsViewed: getEventCount("view_item"),

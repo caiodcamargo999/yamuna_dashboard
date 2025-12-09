@@ -46,9 +46,11 @@ function KPI_Card({ label, value, prefix = "", suffix = "", trend, invertTrend =
                 <p className="text-xl font-bold text-white tracking-tight">
                     {displayValue}
                 </p>
-                <span className={`text-[10px] font-semibold mt-1 block ${colorClass}`}>
-                    {arrow} {Math.abs(trend)}%
-                </span>
+                {trend !== 0 && (
+                    <span className={`text-[10px] font-semibold mt-1 block ${colorClass}`}>
+                        {arrow} {Math.abs(trend)}%
+                    </span>
+                )}
             </div>
         </div>
     );
@@ -111,8 +113,8 @@ export default async function OverviewPage(props: Props) {
                             <DollarSign className="text-white w-4 h-4" />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <KPI_Card label="Investimento" value={data.kpis.investment} trend={1.0} prefix="R$ " />
-                            <KPI_Card label="% Custo" value={data.kpis.costPercentage} suffix="%" trend={4.3} />
+                            <KPI_Card label="Investimento" value={data.kpis.investment} trend={0} prefix="R$ " />
+                            <KPI_Card label="% Custo" value={data.kpis.costPercentage} suffix="%" trend={0} isCurrency={false} />
                         </div>
                     </div>
 
@@ -122,10 +124,10 @@ export default async function OverviewPage(props: Props) {
                             <ShoppingCart className="text-white w-4 h-4" />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <KPI_Card label="Ticket Médio" value={data.kpis.ticketAvg} trend={-6.8} prefix="R$ " invertTrend />
-                            <KPI_Card label="Ticket Médio Novos Clientes" value={data.kpis.ticketAvgNew} trend={2.6} prefix="R$ " />
-                            <KPI_Card label="Retenção" value={data.kpis.retentionRevenue} trend={-12.2} prefix="R$ " invertTrend />
-                            <KPI_Card label="Receita Nova" value={data.kpis.newRevenue} trend={22.0} prefix="R$ " />
+                            <KPI_Card label="Ticket Médio" value={data.kpis.ticketAvg} trend={0} prefix="R$ " />
+                            <KPI_Card label="Ticket Médio Novos Clientes" value={data.kpis.ticketAvgNew} trend={0} prefix="R$ " />
+                            <KPI_Card label="Retenção" value={data.kpis.retentionRevenue} trend={0} prefix="R$ " />
+                            <KPI_Card label="Receita Nova" value={data.kpis.newRevenue} trend={0} prefix="R$ " />
                         </div>
                     </div>
 
@@ -135,8 +137,8 @@ export default async function OverviewPage(props: Props) {
                             <Users className="text-white w-4 h-4" />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <KPI_Card label="Clientes Adquiridos" value={data.kpis.acquiredCustomers} trend={18.8} isCurrency={false} />
-                            <KPI_Card label="Custo de Aquisição (CAC)" value={data.kpis.cac} trend={-15.0} prefix="R$ " invertTrend />
+                            <KPI_Card label="Clientes Adquiridos" value={data.kpis.acquiredCustomers} trend={0} isCurrency={false} />
+                            <KPI_Card label="Custo de Aquisição (CAC)" value={data.kpis.cac} trend={0} prefix="R$ " />
                         </div>
                     </div>
 
@@ -146,9 +148,9 @@ export default async function OverviewPage(props: Props) {
                             <Rocket className="text-white w-4 h-4" />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <KPI_Card label="Faturamento 12 Meses" value={data.kpis.revenue12m} trend={55.7} prefix="R$ " variant="dark" />
-                            <KPI_Card label="LTV 12 Meses" value={data.kpis.ltv12m} trend={55.7} prefix="R$ " variant="dark" />
-                            <KPI_Card label="ROI 12 Meses" value={data.kpis.roi12m} trend={198.7} isCurrency={false} variant="dark" />
+                            <KPI_Card label="Faturamento 12 Meses" value={data.kpis.revenue12m} trend={0} prefix="R$ " variant="dark" />
+                            <KPI_Card label="LTV 12 Meses" value={data.kpis.ltv12m} trend={0} prefix="R$ " variant="dark" />
+                            <KPI_Card label="ROI 12 Meses" value={data.kpis.roi12m} suffix="%" trend={0} isCurrency={false} variant="dark" />
                         </div>
                     </div>
 

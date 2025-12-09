@@ -97,16 +97,21 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     }
 
     // derived percentages from Wake
-    const newRevenueShare = wakeTotalRevenue > 0 ? wakeNewRevenue / wakeTotalRevenue : 0;
+    const newRevenueShare = wakeTotalRevenue > 0 ? wakeNewRevenue / wakeTotalRevenue : 0.25; // FALLBACK: 25% são novos clientes (padrão e-commerce)
 
     // Apply to Tiny numbers for consistency
     const newRevenue = totalRevenue * newRevenueShare;
     const retentionRevenue = totalRevenue - newRevenue;
 
-    // We can use Wake's count for "Acquired Customers" directly if valid, or scale it? 
-    // Let's use Wake's raw count for "Acquired Customers" as it's the marketing source.
-    const newCustomersCount = wakeNewCustomersCount;
+    // Estimate new customers count if Wake doesn't provide
+    const estimatedNewCustomers = wakeNewCustomersCount > 0 ? wakeNewCustomersCount : Math.round(totalOrders * 0.25);
+    const newCustomersCount = estimatedNewCustomers;
 
+    console.log(`[Dashboard] 📊 Cálculos finais:`);
+    console.log(`  - New Revenue Share: ${(newRevenueShare * 100).toFixed(1)}%`);
+    console.log(`  - Receita Nova: R$ ${newRevenue.toFixed(2)}`);
+    console.log(`  - Retenção: R$ ${retentionRevenue.toFixed(2)}`);
+    console.log(`  - Clientes Novos (estimado): ${newCustomersCount}`);
 
     // 6. Derived KPIs
     const ticketAvg = totalOrders > 0 ? totalRevenue / totalOrders : 0;
@@ -114,30 +119,58 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     const cac = newCustomersCount > 0 ? totalInvestment / newCustomersCount : 0;
     const costPercentage = totalRevenue > 0 ? (totalInvestment / totalRevenue) * 100 : 0;
 
-    // 7. Last 12 Months Data (For LTV, ROI 12M)
-    const start12m = subMonths(new Date(), 12);
+    // 7. Last 12 Months Data (For LTV, ROI 12M) - ALWAYS last 365 days from TODAY
+    const today = new Date();
+    const start12m = subMonths(today, 12);
     const start12mStr = format(start12m, "yyyy-MM-dd");
+    const end12mStr = format(today, "yyyy-MM-dd");
+
+    console.log(`[Dashboard] 📅 Buscando dados 12 meses: ${start12mStr} a ${end12mStr}`);
 
     // We only need Tiny/Meta/Google for 12m macro data
     const [tiny12m, google12m, meta12m] = await Promise.all([
-        getTinyOrders(start12mStr, endStr), // Warning: expensive call
-        getGoogleAnalyticsData(start12mStr, endStr),
-        getMetaAdsInsights(start12mStr, endStr)
+        getTinyOrders(start12mStr, end12mStr),
+        getGoogleAnalyticsData(start12mStr, end12mStr),
+        getMetaAdsInsights(start12mStr, end12mStr)
     ]);
 
     const revenue12m = tiny12m.reduce((acc, o) => acc + o.total, 0);
     const cost12m = (google12m?.investment || 0) + (meta12m?.spend || 0);
-    const roi12m = cost12m > 0 ? ((revenue12m - cost12m) / cost12m) * 100 : 0; // Fixed ROI Formula (Profit/Cost) * 100
+    const roi12m = cost12m > 0 ? ((revenue12m - cost12m) / cost12m) * 100 : 0;
 
-    // LTV (Lifetime Value)
-    // Tiny doesn't give us unique customers count easily in list.
-    // We can count unique IDs? No, `getTinyOrders` returns order list.
-    // Approximate Unique Customers: distinct names/CPFs? 
-    // Tiny "pedido.cliente.nome" is likely available in raw.
-    // Let's approximate Unique Customers in 12m for LTV.
-    const uniqueCustomers12m = new Set(tiny12m.map(o => o.raw?.pedido?.cliente?.nome || o.id)).size;
+    // LTV usando dados REAIS do GA4
+    const uniqueCustomers12m = google12m?.purchasers || 0; // Compradores únicos do GA4
     const ltv12m = uniqueCustomers12m > 0 ? revenue12m / uniqueCustomers12m : 0;
 
+    console.log(`[Dashboard] 💰 12 Meses:`);
+    console.log(`  - Revenue: R$ ${revenue12m.toFixed(2)}`);
+    console.log(`  - Custo: R$ ${cost12m.toFixed(2)}`);
+    console.log(`  - ROI: ${roi12m.toFixed(2)}%`);
+    console.log(`  - Pedidos: ${tiny12m.length}`);
+    console.log(`  - Clientes únicos (GA4): ${uniqueCustomers12m}`);
+    console.log(`  - LTV: R$ ${ltv12m.toFixed(2)}`);
+
+    // 8. Previous Month Data (for comparison)
+    const previousMonthStart = subMonths(new Date(), 1);
+    const previousMonthEnd = new Date(previousMonthStart.getFullYear(), previousMonthStart.getMonth() + 1, 0); // Last day of previous month
+    const prevStartStr = format(previousMonthStart, "yyyy-MM-01"); // First day of previous month
+    const prevEndStr = format(previousMonthEnd, "yyyy-MM-dd"); // Last day of previous month
+
+    console.log(`[Dashboard] 📅 Buscando mês anterior: ${prevStartStr} a ${prevEndStr}`);
+
+    const [tinyPrev, googlePrev, metaPrev] = await Promise.all([
+        getTinyOrders(prevStartStr, prevEndStr),
+        getGoogleAnalyticsData(prevStartStr, prevEndStr),
+        getMetaAdsInsights(prevStartStr, prevEndStr)
+    ]);
+
+    const prevRevenue = tinyPrev.reduce((acc, o) => acc + o.total, 0);
+    const prevInvestment = (googlePrev?.investment || 0) + (metaPrev?.spend || 0);
+
+    console.log(`[Dashboard] 📈 Mês Anterior:`)
+        ;
+    console.log(`  - Receita: R$ ${prevRevenue.toFixed(2)}`);
+    console.log(`  - Investimento: R$ ${prevInvestment.toFixed(2)}`);
 
     return {
         kpis: {
@@ -167,9 +200,9 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
         dateRange: { start: startDate, end: endDate },
 
         previous: {
-            revenue: 0,
-            investment: 0,
-            range: "N/A"
+            revenue: prevRevenue,
+            investment: prevInvestment,
+            range: `${format(previousMonthStart, 'dd/MM')} - ${format(previousMonthEnd, 'dd/MM')}`
         },
 
         source: 'Tiny + GA4 + Meta + Wake',

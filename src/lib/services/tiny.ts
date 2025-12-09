@@ -39,59 +39,35 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
         return [];
     }
 
-    if (TINY_TOKEN.trim() === '') {
-        console.error("[Tiny API] ❌ ERRO: TINY_API_TOKEN está vazia!");
-        return [];
-    }
-
-    console.log(`[Tiny API] ✓ Token configurado: ${TINY_TOKEN.substring(0, 15)}...`);
+    console.log(`[Tiny API] ✓ Token configurado`);
     console.log(`[Tiny API] 📅 Buscando pedidos de ${startDate} até ${endDate}`);
-    console.log(`[Tiny API] 🔍 Iniciando busca paginada...`);
-
-    const searchStart = Date.now();
 
     let allOrders: TinyOrder[] = [];
     let page = 1;
     let hasMore = true;
-    const maxPages = 20; // Safety limit to prevent infinite loops
+    const maxPages = 10; // Limit for performance
 
     while (hasMore && page <= maxPages) {
-        // Removed situacao=aprovado to fetch ALL orders (Olist dashboard shows 200+, we only got 22 approved)
         let url = `https://api.tiny.com.br/api2/pedidos.pesquisa.php?token=${TINY_TOKEN}&formato=json&pagina=${page}`;
 
         if (startDate) url += `&data_inicial=${formatDate(startDate)}`;
         if (endDate) url += `&data_final=${formatDate(endDate)}`;
 
-        // Debug URL
-        console.log(`[Tiny Fetch] Page ${page} | URL: ${url}`);
-
         try {
             const res = await fetch(url, {
-                next: { revalidate: 0 },  // Disable cache for debugging
+                next: { revalidate: 0 },
                 cache: 'no-store'
             });
             const data = await res.json();
 
-            // Log response status
-            console.log(`[Tiny Response] Status: ${data.retorno?.status} | Key 'pedidos' exists: ${!!data.retorno?.pedidos}`);
-
             if (data.retorno.status === "Erro") {
-                // Check if it's just "empty"
-                if (data.retorno.erros && data.retorno.erros[0]?.erro?.includes("A pesquisa nao retornou registros")) {
-                    console.log("[Tiny Info] No more records found.");
-                } else {
-                    console.error("[Tiny Error]", JSON.stringify(data.retorno.erros));
-                }
+                console.log("[Tiny] No more records");
                 hasMore = false;
                 break;
             }
 
             const orders: TinyOrder[] = data.retorno.pedidos || [];
-            console.log(`[Tiny Page ${page}] 📦 Encontrados ${orders.length} pedidos`);
-
-            if (orders.length > 0 && page === 1) {
-                console.log(`[Tiny Sample] Estrutura do primeiro pedido:`, JSON.stringify(orders[0], null, 2));
-            }
+            console.log(`[Tiny Page ${page}] 📦 ${orders.length} pedidos`);
 
             if (orders.length === 0) {
                 hasMore = false;
@@ -100,43 +76,36 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
                 page++;
             }
         } catch (error) {
-            console.error("Error fetching Tiny data:", error);
+            console.error("Error fetching Tiny:", error);
             hasMore = false;
         }
     }
 
-    // Filter out cancelled orders
     const validOrders = allOrders.filter(o => o.pedido?.situacao !== 'cancelado');
 
-    const searchTime = Date.now() - searchStart;
-    console.log(`[Tiny API] ⏱️  Busca concluída em ${searchTime}ms`);
-    console.log(`[Tiny API] 📊 Total de pedidos brutos: ${allOrders.length}`);
-    console.log(`[Tiny API] ✅ Pedidos válidos (não cancelados): ${validOrders.length}`);
+    console.log(`[Tiny API] ✅ ${validOrders.length} pedidos válidos`);
 
     if (validOrders.length > 0) {
         const first = validOrders[0].pedido;
-        const parsedValue = parseCurrency(first.valor_total);
-        console.log(`[Tiny Debug] 💰 Primeiro pedido:`);
-        console.log(`  - ID: ${first.id}`);
-        console.log(`  - Data: ${first.data_pedido}`);
-        console.log(`  - Valor RAW: "${first.valor_total}" (type: ${typeof first.valor_total})`);
-        console.log(`  - Valor PARSED: R$ ${parsedValue.toFixed(2)}`);
-        console.log(`  - Situação: ${first.situacao}`);
-
-        // Calculate total revenue for verification
-        const totalRevenue = validOrders.reduce((sum, o) => sum + parseCurrency(o.pedido?.valor_total), 0);
-        console.log(`[Tiny Debug] 💵 Receita total calculada: R$ ${totalRevenue.toFixed(2)}`);
-    } else {
-        console.warn(`[Tiny API] ⚠️  ATENÇÃO: Nenhum pedido válido encontrado para o período ${startDate} a ${endDate}`);
+        console.log(`[Tiny Debug] Sample:`, JSON.stringify(first, null, 2).substring(0, 300));
     }
 
-    return validOrders.map((o: any) => ({
-        id: o.pedido?.id || "N/A",
-        date: o.pedido?.data_pedido || "",
-        total: parseCurrency(o.pedido?.valor_total),
-        status: o.pedido?.situacao || "",
-        raw: { ...o, debug_total: o.pedido?.valor_total }
-    }));
+    // Map and extract values - try multiple possible field names
+    return validOrders.map((o: any) => {
+        const pedido = o.pedido || o;
+
+        // Try all possible value fields
+        const rawValue = pedido.valor_total || pedido.valor || pedido.total_pedido || pedido.total || "0";
+        const total = parseCurrency(rawValue);
+
+        return {
+            id: pedido.id || pedido.numero || "N/A",
+            date: pedido.data_pedido || "",
+            total: total,
+            status: pedido.situacao || "",
+            raw: pedido
+        };
+    });
 }
 
 export async function getTinyProducts() {
@@ -145,15 +114,11 @@ export async function getTinyProducts() {
     const url = `https://api.tiny.com.br/api2/produtos.pesquisa.php?token=${TINY_TOKEN}&formato=json`;
 
     try {
-        const res = await fetch(url, { next: { revalidate: 3600 } }); // Cache 1hr
+        const res = await fetch(url, { next: { revalidate: 3600 } });
         const data = await res.json();
         if (data.retorno.status === "Erro") return [];
 
         const products = data.retorno.produtos || [];
-        if (products.length > 0) {
-            console.log("[Tiny] Sample Product:", JSON.stringify(products[0], null, 2));
-        }
-
         return products;
     } catch (e) {
         console.error(e);

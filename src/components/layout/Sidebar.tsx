@@ -31,6 +31,11 @@ const sidebarItems = [
         icon: Megaphone,
     },
     {
+        title: "Google Ads",
+        href: "/google-ads",
+        icon: Megaphone,
+    },
+    {
         title: "Funil Loja Virtual",
         href: "/funnel",
         icon: Filter,

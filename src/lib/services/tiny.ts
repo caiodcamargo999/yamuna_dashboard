@@ -114,7 +114,10 @@ export async function getTinyProducts() {
     const url = `https://api.tiny.com.br/api2/produtos.pesquisa.php?token=${TINY_TOKEN}&formato=json`;
 
     try {
-        const res = await fetch(url, { next: { revalidate: 3600 } });
+        const res = await fetch(url, {
+            next: { revalidate: 0 },
+            cache: 'no-store'
+        });
         const data = await res.json();
         if (data.retorno.status === "Erro") return [];
 

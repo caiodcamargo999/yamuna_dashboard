@@ -25,7 +25,10 @@ export async function getMetaAdsInsights(startDate: string, endDate: string): Pr
     const url = `https://graph.facebook.com/v19.0/${ACCOUNT_ID}/insights?access_token=${ACCESS_TOKEN}&level=account&fields=${fields}&time_range=${time_range}`;
 
     try {
-        const res = await fetch(url, { next: { revalidate: 3600 } });
+        const res = await fetch(url, {
+            next: { revalidate: 0 },
+            cache: 'no-store'
+        });
         const data = await res.json();
 
         if (data.error) {
@@ -72,7 +75,10 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
     const insightsUrl = `https://graph.facebook.com/v19.0/${ACCOUNT_ID}/insights?access_token=${ACCESS_TOKEN}&level=ad&fields=${insightsFields}&time_range=${time_range}&sort=spend_descending&limit=20`;
 
     try {
-        const insightsRes = await fetch(insightsUrl, { next: { revalidate: 300 } });
+        const insightsRes = await fetch(insightsUrl, {
+            next: { revalidate: 0 },
+            cache: 'no-store'
+        });
         const insightsData = await insightsRes.json();
 
         // LOG RAW RESPONSE TO DEBUG
@@ -90,60 +96,91 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
             return [];
         }
 
-        // 2. Fetch Creative Details (Images) for these Ad IDs
+        // 2. Fetch Creative Details (Images/Videos) for these Ad IDs
         const adIds = rows.map((r: any) => r.ad_id).join(',');
-        const adFields = "name,status,creative{image_url,thumbnail_url}";
+        const adFields = "name,status,creative{image_url,thumbnail_url,video_id,object_type},campaign{objective}";
         const adsUrl = `https://graph.facebook.com/v19.0/?ids=${adIds}&fields=${adFields}&access_token=${ACCESS_TOKEN}`;
 
-        const adsRes = await fetch(adsUrl, { next: { revalidate: 3600 } });
+        const adsRes = await fetch(adsUrl, {
+            next: { revalidate: 0 },
+            cache: 'no-store'
+        });
         const adsData = await adsRes.json();
 
-        // 3. Merge Data
+        // 3. Fetch video URLs for all video creatives
+        const videoIdsToFetch = rows
+            .map((r: any) => adsData[r.ad_id]?.creative?.video_id)
+            .filter(Boolean);
+
+        const videoUrlMap = new Map<string, string>();
+
+        if (videoIdsToFetch.length > 0) {
+            console.log(`[Meta Ads] 🎥 Fetching ${videoIdsToFetch.length} video URLs from Facebook API...`);
+            console.log(`[Meta Ads] Video IDs to fetch:`, videoIdsToFetch);
+
+            await Promise.all(
+                videoIdsToFetch.map(async (videoId: string) => {
+                    try {
+                        const videoUrl = `https://graph.facebook.com/v19.0/${videoId}?fields=source&access_token=${ACCESS_TOKEN}`;
+                        const videoRes = await fetch(videoUrl);
+                        if (videoRes.ok) {
+                            const videoData = await videoRes.json();
+                            if (videoData.source) {
+                                videoUrlMap.set(videoId, videoData.source);
+                                console.log(`[Meta Ads] ✅ Video ${videoId} URL fetched successfully`);
+                            } else {
+                                console.warn(`[Meta Ads] ⚠️ Video ${videoId} has no source field`);
+                            }
+                        } else {
+                            console.error(`[Meta Ads] ❌ Failed to fetch video ${videoId}: ${videoRes.status}`);
+                        }
+                    } catch (error) {
+                        console.error(`[Meta Ads] ❌ Exception fetching video ${videoId}:`, error);
+                    }
+                })
+            );
+
+            console.log(`[Meta Ads] 📊 Successfully fetched ${videoUrlMap.size}/${videoIdsToFetch.length} video URLs`);
+        } else {
+            console.log(`[Meta Ads] ℹ️ No video ads found in this period`);
+        }
+
+        // 4. Merge Data
         return rows.map((row: any) => {
             const adDetails = adsData[row.ad_id] || {};
             const creative = adDetails.creative || {};
 
-            // Calculate Metrics
-            const spend = parseFloat(row.spend || "0");
-            const clicks = parseInt(row.clicks || "0");
-            const ctr = parseFloat(row.ctr || "0"); // API usually returns rate as percentage, e.g. "1.5" for 1.5%
-            const cpc = parseFloat(row.cpc || "0");
-
-            // Calculate ROAS
-            let roas = 0;
-            if (row.purchase_roas && Array.isArray(row.purchase_roas)) {
-                const roasObj = row.purchase_roas.find((item: any) => item.action_type === 'omni_purchase');
-                roas = roasObj ? parseFloat(roasObj.value) : 0;
-            }
-
-            // Calculate Purchases
-            let purchases = 0;
-            if (row.actions && Array.isArray(row.actions)) {
-                const purchObj = row.actions.find((item: any) => item.action_type === 'omni_purchase' || item.action_type === 'purchase');
-                purchases = purchObj ? parseInt(purchObj.value) : 0;
-            }
-
-            // Calculate Leads
-            let leads = 0;
-            if (row.actions && Array.isArray(row.actions)) {
-                const leadItems = row.actions.filter((item: any) =>
-                    item.action_type === 'lead' ||
-                    item.action_type === 'on_facebook_lead' ||
-                    item.action_type === 'contact'
-                );
-                leads = leadItems.reduce((acc: number, item: any) => acc + parseInt(item.value), 0);
-            }
-
-            // Calculate Revenue
+            let spend = parseFloat(row.spend || "0");
+            let clicks = parseInt(row.clicks || "0");
+            let ctr = parseFloat(row.ctr || "0") / 100; // Convert from percentage to decimal
+            let cpc = parseFloat(row.cpc || "0");
             let revenue = 0;
-            if (row.action_values && Array.isArray(row.action_values)) {
-                const revObj = row.action_values.find((item: any) => item.action_type === 'omni_purchase' || item.action_type === 'purchase');
-                revenue = revObj ? parseFloat(revObj.value) : 0;
+            let purchases = 0;
+            let leads = 0;
+            let roas = 0;
+
+            const actions = row.actions || [];
+            for (const action of actions) {
+                if (action.action_type === "purchase" || action.action_type === "offsite_conversion.fb_pixel_purchase" || action.action_type === "omni_purchase") {
+                    purchases += parseInt(action.value || "0");
+                }
+                if (action.action_type === "lead" || action.action_type === "offsite_conversion.fb_pixel_lead" || action.action_type === "on_facebook_lead") {
+                    leads += parseInt(action.value || "0");
+                }
             }
 
-            // Enforce Consistency: Calculate ROAS from Revenue / Spend if possible
+            const actionValues = row.action_values || [];
+            for (const val of actionValues) {
+                if (
+                    val.action_type === "offsite_conversion.fb_pixel_purchase" ||
+                    val.action_type === "purchase" ||
+                    val.action_type === "omni_purchase"
+                ) {
+                    revenue += parseFloat(val.value || "0");
+                }
+            }
+
             const calculatedRoas = spend > 0 ? revenue / spend : 0;
-            // Use calculated ROAS to match the table columns perfectly if spend > 0
             if (spend > 0) {
                 roas = calculatedRoas;
             }
@@ -151,14 +188,23 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
             const cpa = purchases > 0 ? spend / purchases : 0;
             const cpl = leads > 0 ? spend / leads : 0;
 
+            // Determine creative type and URLs
+            const videoId = creative.video_id || null;
+            const hasVideo = !!videoId;
+            const videoUrl = videoId ? (videoUrlMap.get(videoId) || null) : null;
+
             return {
                 id: row.ad_id,
                 name: adDetails.name || row.ad_name,
                 status: adDetails.status || "UNKNOWN",
                 imageUrl: creative.image_url || creative.thumbnail_url || "",
+                videoUrl: videoUrl,
+                videoId: videoId,
+                creativeType: hasVideo ? 'video' : 'image',
+                campaignObjective: adDetails.campaign?.objective || 'UNKNOWN',
                 spend,
                 clicks,
-                ctr, // NO multiplication by 100
+                ctr,
                 cpc,
                 roas,
                 purchases,
@@ -167,7 +213,8 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
                 leads,
                 cpl
             };
-        });
+        }).filter(Boolean);
+
 
     } catch (e) {
         console.error("[Meta Ads] Critical Error:", e);

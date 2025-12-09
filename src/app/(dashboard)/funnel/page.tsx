@@ -1,6 +1,10 @@
 import { Header } from "@/components/layout/Header";
-import { FunnelOverview } from "@/components/charts/FunnelOverview";
-import { fetchDashboardData } from "@/app/actions";
+import { fetchFunnelData } from "@/app/funnel-actions";
+import { MonthlyGoalEditor } from "@/components/funnel/MonthlyGoalEditor";
+import { FunnelVisualization } from "@/components/funnel/FunnelVisualization";
+import { MonthComparison } from "@/components/funnel/MonthComparison";
+import { TopProducts } from "@/components/funnel/TopProducts";
+import { ShoppingCart, TrendingUp } from "lucide-react";
 
 interface Props {
     searchParams: Promise<{ start?: string; end?: string }>;
@@ -11,42 +15,70 @@ export default async function FunnelPage(props: Props) {
     const startDate = searchParams.start || "30daysAgo";
     const endDate = searchParams.end || "today";
 
-    const data = await fetchDashboardData(startDate, endDate);
-
-    const funnelData = [
-        { stage: "Sessões", users: data.sessions, value: data.sessions.toLocaleString('pt-BR'), subLabel: "Sessões" },
-        { stage: "Produtos", users: Math.round(data.sessions * 0.6), value: "-", subLabel: "Estimado (60%)" }, // GA4 'itemsViewed' is handy but we didn't fetch it yet. Estimating for now.
-        { stage: "Carrinho", users: data.addToCarts, value: data.addToCarts.toLocaleString('pt-BR'), subLabel: "Add ao Carrinho" },
-        { stage: "Checkout", users: data.checkouts, value: data.checkouts.toLocaleString('pt-BR'), subLabel: "Checkout Iniciado" },
-        { stage: "Transações", users: data.transactions, value: data.transactions.toLocaleString('pt-BR'), subLabel: "Transações" },
-    ];
+    const data = await fetchFunnelData(startDate, endDate);
 
     return (
         <>
             <Header title="Funil Loja Virtual" />
             <main className="p-6 space-y-6 overflow-y-auto w-full">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="p-6 rounded-xl bg-slate-900 border border-slate-800">
-                        <h3 className="text-xl font-bold text-white mb-6 text-center">Visualização do Funil</h3>
-                        <div className="min-h-[400px] flex items-center justify-center">
-                            <FunnelOverview data={funnelData} />
+                {/* Monthly Goal Editor */}
+                <MonthlyGoalEditor
+                    month={data.currentMonth.month}
+                    year={data.currentMonth.year}
+                    currentRevenueGoal={data.currentMonth.goal?.revenue_goal || 0}
+                    currentTransactionsGoal={data.currentMonth.goal?.transactions_goal || 0}
+                />
+
+                {/* Funnel Visualization */}
+                <FunnelVisualization
+                    funnel={data.selectedPeriod}
+                />
+
+                {/* Additional Metrics */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                        <p className="text-slate-400 text-sm mb-2">Ticket Médio</p>
+                        <p className="text-white text-2xl font-bold">
+                            R$ {data.selectedPeriod.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                    </div>
+
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                        <p className="text-slate-400 text-sm mb-2">Sessões Totais</p>
+                        <p className="text-white text-2xl font-bold">
+                            {data.selectedPeriod.sessions.toLocaleString('pt-BR')}
+                        </p>
+                    </div>
+
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-3">
+                        <ShoppingCart className="text-indigo-400" size={32} />
+                        <div>
+                            <p className="text-slate-400 text-sm mb-1">Eventos Carrinho</p>
+                            <p className="text-white text-2xl font-bold">
+                                {data.selectedPeriod.addToCarts.toLocaleString('pt-BR')}
+                            </p>
                         </div>
                     </div>
 
-                    <div className="p-6 rounded-xl bg-slate-900 border border-slate-800">
-                        <h3 className="text-xl font-bold text-white mb-6">Detalhamento</h3>
-                        <div className="space-y-4">
-                            {funnelData.map((stage) => (
-                                <div key={stage.stage} className="flex items-center justify-between p-4 bg-slate-800 rounded-lg">
-                                    <span className="text-slate-300 font-medium">{stage.subLabel}</span>
-                                    <div className="text-right">
-                                        <span className="block text-white font-bold text-lg">{stage.value}</span>
-                                    </div>
-                                </div>
-                            ))}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-3">
+                        <TrendingUp className="text-emerald-400" size={32} />
+                        <div>
+                            <p className="text-slate-400 text-sm mb-1">Sessões/Carrinhos</p>
+                            <p className="text-white text-2xl font-bold">
+                                {data.selectedPeriod.sessionsPerCart.toFixed(1)}
+                            </p>
                         </div>
                     </div>
                 </div>
+
+                {/* Month Comparison */}
+                <MonthComparison
+                    currentMonth={data.currentMonth}
+                    previousMonth={data.previousMonth}
+                />
+
+                {/* Top Products */}
+                <TopProducts products={data.selectedPeriod.products} />
             </main>
         </>
     );

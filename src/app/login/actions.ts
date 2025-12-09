@@ -36,11 +36,20 @@ export async function signup(formData: FormData) {
     const email = formData.get('email') as string
     const password = formData.get('password') as string
 
+    // Robust URL resolution
+    let siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    if (!siteUrl && process.env.VERCEL_URL) {
+        siteUrl = `https://${process.env.VERCEL_URL}`;
+    }
+    if (!siteUrl) {
+        siteUrl = 'http://localhost:3000';
+    }
+
     const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+            emailRedirectTo: `${siteUrl}/auth/callback`,
         },
     })
 
@@ -54,10 +63,20 @@ export async function signup(formData: FormData) {
 
 export async function signInWithGoogle() {
     const supabase = await createClient()
+
+    // Robust URL resolution
+    let siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    if (!siteUrl && process.env.VERCEL_URL) {
+        siteUrl = `https://${process.env.VERCEL_URL}`;
+    }
+    if (!siteUrl) {
+        siteUrl = 'http://localhost:3000';
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-            redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+            redirectTo: `${siteUrl}/auth/callback`,
             queryParams: {
                 access_type: 'offline',
                 prompt: 'consent',

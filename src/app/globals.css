@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  --background: #020617; /* slate-950 */
+  --foreground: #f8fafc; /* slate-50 */
+  
+  --card: #0f172a; /* slate-900 */
+  --card-foreground: #f8fafc;
+ 
+  --popover: #0f172a;
+  --popover-foreground: #f8fafc;
+ 
+  --primary: #f8fafc;
+  --primary-foreground: #020617;
+ 
+  --secondary: #1e293b; /* slate-800 */
+  --secondary-foreground: #f8fafc;
+ 
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8; /* slate-400 */
+ 
+  --accent: #1e293b;
+  --accent-foreground: #f8fafc;
+ 
+  --destructive: #7f1d1d;
+  --destructive-foreground: #f8fafc;
+
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #cbd5e1;
+  
+  --radius: 0.5rem;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* Utilities */
+.text-balance {
+  text-wrap: balance;
+}

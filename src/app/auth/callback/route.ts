@@ -21,9 +21,13 @@ export async function GET(request: Request) {
             } else {
                 return NextResponse.redirect(`${origin}${next}`)
             }
+        } else {
+            // Capture helpful error message
+            console.error('Auth Callback Error:', error);
+            return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`)
         }
     }
 
-    // return the user to an error page with instructions
-    return NextResponse.redirect(`${origin}/login?error=auth`)
+    // return the user to an error page with instructions if no code found
+    return NextResponse.redirect(`${origin}/login?error=no_code_provided`)
 }

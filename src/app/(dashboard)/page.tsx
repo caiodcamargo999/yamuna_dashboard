@@ -75,6 +75,15 @@ export default async function OverviewPage(props: Props) {
     // Funnel data 
     const funnelData = [
         { stage: "Sessões", users: data.sessions, value: data.sessions.toLocaleString('pt-BR'), subLabel: "Sessões" },
+<<<<<<< HEAD
+=======
+        {
+            stage: "Estimado",
+            users: Math.round(data.sessions * 0.6),
+            value: Math.round(data.sessions * 0.6).toLocaleString('pt-BR'),
+            subLabel: "Estimado (60%)"
+        },
+>>>>>>> production-release
         { stage: "Visualizações", users: data.productsViewed, value: data.productsViewed.toLocaleString('pt-BR'), subLabel: "Produtos" },
         { stage: "Carrinho", users: data.addToCarts, value: data.addToCarts.toLocaleString('pt-BR'), subLabel: "Add ao Carrinho" },
         { stage: "Checkout", users: data.checkouts, value: data.checkouts.toLocaleString('pt-BR'), subLabel: "Iniciado" },

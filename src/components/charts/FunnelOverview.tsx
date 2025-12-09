@@ -44,7 +44,11 @@ export function FunnelOverview({ data }: FunnelChartProps) {
                             style={{ width: `${widthPercentage}%`, minWidth: '200px' }}
                         >
                             <span className="text-white text-sm font-medium block">{stage.subLabel}</span>
+<<<<<<< HEAD
                             <span className="text-white text-2xl font-bold block">{stage.value}</span>
+=======
+                            <span className="text-white text-2xl font-bold block">{stage.value || "-"}</span>
+>>>>>>> production-release
                             {stage.rate && (
                                 <span className="text-white/80 text-xs block">
                                     {stage.rate > 0 ? '↑' : '↓'} {Math.abs(stage.rate)}%

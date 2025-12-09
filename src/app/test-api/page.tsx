@@ -1,7 +1,7 @@
 import { getGoogleAnalyticsData } from "@/lib/services/google";
 import { getMetaAdsInsights, getMetaTopCreatives } from "@/lib/services/meta";
 import { getTinyOrders } from "@/lib/services/tiny";
-import { getWakeProducts } from "@/lib/services/wake";
+import { getWakeProducts, getWakeOrders } from "@/lib/services/wake";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function TestApiPage() {
@@ -21,6 +21,7 @@ export default async function TestApiPage() {
     const metaCreatives: any = await getMetaTopCreatives(startDate, endDate); // Debug Creatives
     const tinyData: any = await getTinyOrders(startDate, endDate);
     const wakeData: any = await getWakeProducts();
+    const wakeOrders: any = await getWakeOrders(startDate, endDate);
 
     return (
         <div className="p-8 bg-zinc-950 min-h-screen text-white font-mono space-y-8">
@@ -66,8 +67,15 @@ export default async function TestApiPage() {
                     {wakeData?.error ? (
                         <div className="text-red-400 text-sm font-bold whitespace-pre-wrap">{wakeData.error}</div>
                     ) : (
-                        <pre className="max-h-40 overflow-auto">{JSON.stringify(wakeData, null, 2)}</pre>
+                        <pre className="max-h-40 overflow-auto">{JSON.stringify(wakeData.slice(0, 1), null, 2)}</pre>
                     )}
+                </Card>
+
+                {/* Wake Orders */}
+                <Card title="Wake Orders" status={wakeOrders && wakeOrders.length > 0 ? "Success" : "Empty"}>
+                    <div className="text-xs text-gray-400 mb-2">Query: /pedidos ({startDate} to {endDate})</div>
+                    <div className="text-xs text-gray-400 mb-2">Count: {wakeOrders.length}</div>
+                    <pre className="max-h-40 overflow-auto">{JSON.stringify(wakeOrders.slice(0, 1), null, 2)}</pre>
                 </Card>
 
                 {/* Meta Creatives Debug */}

@@ -23,38 +23,52 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
         return [];
     }
 
-    let url = `https://api.tiny.com.br/api2/pedidos.pesquisa.php?token=${TINY_TOKEN}&formato=json&situacao=aprovado`;
+    let allOrders: TinyOrder[] = [];
+    let page = 1;
+    let hasMore = true;
+    const maxPages = 20; // Safety limit to prevent infinite loops
 
-    if (startDate) url += `&data_inicial=${formatDate(startDate)}`;
-    if (endDate) url += `&data_final=${formatDate(endDate)}`;
+    while (hasMore && page <= maxPages) {
+        // Removed situacao=aprovado to fetch ALL orders (Olist dashboard shows 200+, we only got 22 approved)
+        let url = `https://api.tiny.com.br/api2/pedidos.pesquisa.php?token=${TINY_TOKEN}&formato=json&pagina=${page}`;
 
-    try {
-        const res = await fetch(url, { next: { revalidate: 300 } }); // Cache for 5min
-        const data = await res.json();
+        if (startDate) url += `&data_inicial=${formatDate(startDate)}`;
+        if (endDate) url += `&data_final=${formatDate(endDate)}`;
 
-        if (data.retorno.status === "Erro") {
-            return [];
+        try {
+            const res = await fetch(url, { next: { revalidate: 300 } });
+            const data = await res.json();
+
+            if (data.retorno.status === "Erro") {
+                // If error is "No records found" (usual for last page + 1), stop.
+                hasMore = false;
+                break;
+            }
+
+            const orders: TinyOrder[] = data.retorno.pedidos || [];
+            if (orders.length === 0) {
+                hasMore = false;
+            } else {
+                allOrders = [...allOrders, ...orders];
+                page++;
+            }
+        } catch (error) {
+            console.error("Error fetching Tiny data:", error);
+            hasMore = false;
         }
-
-        const orders: TinyOrder[] = data.retorno.pedidos || [];
-
-        if (orders.length > 0) {
-            // Debug removed for production
-        }
-
-        return orders.map((o: any) => ({
-            id: o.pedido?.id || "N/A",
-            date: o.pedido?.data_pedido || "",
-            total: o.pedido?.valor_total ?
-                parseFloat(o.pedido.valor_total.replace(/\./g, '').replace(',', '.')) : 0,
-            status: o.pedido?.situacao || "",
-            raw: { ...o, debug_total: o.pedido?.valor_total } // Log raw total to debug
-        }));
-
-    } catch (error) {
-        console.error("Error fetching Tiny data:", error);
-        return [];
     }
+
+    // Filter out cancelled orders
+    const validOrders = allOrders.filter(o => o.pedido?.situacao !== 'cancelado');
+
+    return validOrders.map((o: any) => ({
+        id: o.pedido?.id || "N/A",
+        date: o.pedido?.data_pedido || "",
+        total: o.pedido?.valor_total ?
+            parseFloat(o.pedido.valor_total.replace(/\./g, '').replace(',', '.')) : 0,
+        status: o.pedido?.situacao || "",
+        raw: { ...o, debug_total: o.pedido?.valor_total }
+    }));
 }
 
 export async function getTinyProducts() {

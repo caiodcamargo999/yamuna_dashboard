@@ -5,23 +5,21 @@ const url = require('url');
 
 // 1. PREENCHA AQUI COM OS DADOS DO SEU "ID DO CLIENTE OAUTH"
 // (Crie em: Google Cloud > Credenciais > Criar Credenciais > ID do cliente do OAuth > App para Desktop)
-const CLIENT_ID = 'SEU_CLIENT_ID_AQUI';
-const CLIENT_SECRET = 'SEU_CLIENT_SECRET_AQUI';
+const CLIENT_ID = '735005026704-urfnm43lo56kkofuu4p47d71il66ckq2.apps.googleusercontent.com';
+const CLIENT_SECRET = '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';
 const REDIRECT_URI = 'http://localhost:3000/oauth2callback';
 
-// Escopos necessários para ler o Analytics
-const SCOPES = ['https://www.googleapis.com/auth/analytics.readonly'];
+// Escopos necessários para ler o Analytics e confirmar a identidade do usuário
+const SCOPES = [
+    'https://www.googleapis.com/auth/analytics.readonly',
+    'https://www.googleapis.com/auth/userinfo.email'
+];
 
 const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
 console.log('--- GERADOR DE REFRESH TOKEN GOOGLE ---');
 console.log('1. Certifique-se de ter criado uma credencial "ID do cliente do OAuth" (Tipo Desktop) no Google Cloud.');
-console.log('2. Edite este arquivo e coloque seu CLIENT_ID e CLIENT_SECRET no topo.');
-
-if (CLIENT_ID === 'SEU_CLIENT_ID_AQUI') {
-    console.error('\n[ERRO] Você precisa editar o arquivo scripts/auth-google.js e colocar suas credenciais primeiro!');
-    process.exit(1);
-}
+console.log('2. Script pré-configurado com suas credenciais.');
 
 // Servidor temporário para receber o código
 const server = http.createServer(async (req, res) => {
@@ -35,22 +33,44 @@ const server = http.createServer(async (req, res) => {
         console.log(`\nCódigo recebido: ${code}`);
         console.log('Trocando código por tokens...');
 
-        const { tokens } = await oauth2Client.getToken(code);
+        try {
+            const { tokens } = await oauth2Client.getToken(code);
+            oauth2Client.setCredentials(tokens);
 
-        console.log('\n----------------------------------------');
-        console.log('SUCESSO! Copie e salve estas chaves no seu .env.local:');
-        console.log('----------------------------------------');
-        console.log(`GOOGLE_CLIENT_ID=${CLIENT_ID}`);
-        console.log(`GOOGLE_CLIENT_SECRET=${CLIENT_SECRET}`);
-        console.log(`GOOGLE_REFRESH_TOKEN=${tokens.refresh_token}`);
-        console.log('----------------------------------------\n');
-        process.exit(0);
+            // Verificar qual email autenticou
+            const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+            const userInfo = await oauth2.userinfo.get();
+            const userEmail = userInfo.data.email;
+
+            console.log('\n----------------------------------------');
+            console.log(`AUTENTICADO COMO: ${userEmail}`);
+
+            if (userEmail !== 'caiomilennials@gmail.com') {
+                console.log('\n[ATENÇÃO] Este NÃO parece ser o email que tem acesso ao GA4!');
+                console.log('Por favor, rode novamente e logue com a conta correta.');
+            } else {
+                console.log('Identity Check: OK (Email correto)');
+            }
+
+            console.log('----------------------------------------');
+            console.log('SUCESSO! Copie e salve estas chaves no seu .env.local:');
+            console.log('----------------------------------------');
+            console.log(`GOOGLE_CLIENT_ID=${CLIENT_ID}`);
+            console.log(`GOOGLE_CLIENT_SECRET=${CLIENT_SECRET}`);
+            console.log(`GOOGLE_REFRESH_TOKEN=${tokens.refresh_token}`);
+            console.log('----------------------------------------\n');
+            process.exit(0);
+        } catch (error) {
+            console.error('Erro ao trocar token:', error.message);
+            process.exit(1);
+        }
     }
 }).listen(3000);
 
 const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
+    prompt: 'consent' // Forces Google to provide a new Refresh Token
 });
 
 console.log(`\n3. Abra este link no navegador para autorizar: \n${authUrl}`);

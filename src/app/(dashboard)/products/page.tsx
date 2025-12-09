@@ -32,9 +32,9 @@ export default async function ProductsPage() {
                                 <tr>
                                     <th className="px-4 py-3">Código</th>
                                     <th className="px-4 py-3">Produto</th>
-                                    <th className="px-4 py-3 text-right">Quantidade</th>
-                                    <th className="px-4 py-3 text-right">Receita Total</th>
-                                    <th className="px-4 py-3 text-right">% Acumulado</th>
+                                    <th className="px-4 py-3 text-right">Estoque</th>
+                                    <th className="px-4 py-3 text-right">Preço Unit.</th>
+                                    <th className="px-4 py-3 text-right">% Repr.</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800">

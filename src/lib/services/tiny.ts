@@ -38,11 +38,17 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
 
         const orders: TinyOrder[] = data.retorno.pedidos || [];
 
-        return orders.map(o => ({
-            id: o.pedido.id,
-            date: o.pedido.data_pedido,
-            total: parseFloat(o.pedido.valor_total),
-            status: o.pedido.situacao
+        if (orders.length > 0) {
+            console.log("[Tiny Debug] First Order Structure:", JSON.stringify(orders[0], null, 2));
+        }
+
+        return orders.map((o: any) => ({
+            id: o.pedido?.id || "N/A",
+            date: o.pedido?.data_pedido || "",
+            total: o.pedido?.valor_total ?
+                parseFloat(o.pedido.valor_total.replace(/\./g, '').replace(',', '.')) : 0,
+            status: o.pedido?.situacao || "",
+            raw: { ...o, debug_total: o.pedido?.valor_total } // Log raw total to debug
         }));
 
     } catch (error) {
@@ -61,7 +67,12 @@ export async function getTinyProducts() {
         const data = await res.json();
         if (data.retorno.status === "Erro") return [];
 
-        return data.retorno.produtos || [];
+        const products = data.retorno.produtos || [];
+        if (products.length > 0) {
+            console.log("[Tiny] Sample Product:", JSON.stringify(products[0], null, 2));
+        }
+
+        return products;
     } catch (e) {
         console.error(e);
         return [];

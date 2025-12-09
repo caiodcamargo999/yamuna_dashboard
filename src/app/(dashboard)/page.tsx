@@ -1,6 +1,58 @@
 import { Header } from "@/components/layout/Header";
 import { FunnelOverview } from "@/components/charts/FunnelOverview";
 import { fetchDashboardData } from "@/app/actions";
+import { DollarSign, ShoppingCart, Users, Rocket } from "lucide-react";
+
+// Helper Component for the Cards
+function KPI_Card({ label, value, prefix = "", suffix = "", trend, invertTrend = false, isCurrency = true, variant = "default" }: any) {
+    const formattedValue = isCurrency
+        ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+        : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value);
+
+    // If prefix/suffix is manual but we want currency formatting, we might just strip the currency symbol from Intl?
+    // Let's just use the formattedValue if isCurrency is true, ignoring manual prefix if it doubles up.
+    // Actually, for consistency let's just stick to a simple formatted display.
+    const displayValue = isCurrency ? formattedValue : `${prefix}${formattedValue}${suffix}`;
+
+    const isPositive = trend > 0;
+    const isGood = invertTrend ? !isPositive : isPositive; // If invert, positive trend is BAD (e.g. Cost)
+
+    // Correction: User image shows Cost increasing is Green (Good)? Maybe it represents scale?
+    // Let's stick to standard business logic: Revenue Up = Good (Green), Cost Up = Bad (Red) unless specifically desired otherwise.
+    // The image shows Investimento +1.0% (Green). So Spending More is viewed as Green (Scaling).
+    // % Custo +4.3% (Green).
+    // CAC -15% (Green).
+    // OK, so Green always means "Trend is Green" visually, but mathematically we should care.
+    // The image shows pure Green for Up, Red for Down regardless of metric type?
+    // Cost % Up being Green is weird. Let's look closer.
+    // % Custo +4.3% is GREEN arrow. 
+    // Ticket Medio -6.8% is RED arrow.
+    // Retention -12.2% is RED arrow.
+    // So Up = Green, Down = Red seems to be the visual rule used in the mockup, regardless of meaning.
+    // EXCEPT CAC -15.0% is GREEN. Wait.
+    // CAC going DOWN is GOOD. So Green.
+    // Ticket Medio going DOWN is BAD. So Red.
+    // So it IS semantic colors.
+
+    const colorClass = isGood ? "text-emerald-400" : "text-red-400";
+    const arrow = isPositive ? "⬆" : "⬇";
+
+    const bgClass = variant === "dark" ? "bg-slate-950 border-slate-900" : "bg-slate-900 border-slate-800";
+
+    return (
+        <div className={`p-4 rounded-xl border ${bgClass} flex flex-col justify-between h-[110px]`}>
+            <span className="text-xs text-slate-400 font-medium">{label}</span>
+            <div className="mt-1">
+                <p className="text-xl font-bold text-white tracking-tight">
+                    {displayValue}
+                </p>
+                <span className={`text-[10px] font-semibold mt-1 block ${colorClass}`}>
+                    {arrow} {Math.abs(trend)}%
+                </span>
+            </div>
+        </div>
+    );
+}
 
 
 interface Props {
@@ -23,11 +75,10 @@ export default async function OverviewPage(props: Props) {
     // Funnel data 
     const funnelData = [
         { stage: "Sessões", users: data.sessions, value: data.sessions.toLocaleString('pt-BR'), subLabel: "Sessões" },
+        { stage: "Visualizações", users: data.productsViewed, value: data.productsViewed.toLocaleString('pt-BR'), subLabel: "Produtos" },
+        { stage: "Carrinho", users: data.addToCarts, value: data.addToCarts.toLocaleString('pt-BR'), subLabel: "Add ao Carrinho" },
+        { stage: "Checkout", users: data.checkouts, value: data.checkouts.toLocaleString('pt-BR'), subLabel: "Iniciado" },
         { stage: "Transações", users: data.transactions, value: data.transactions.toLocaleString('pt-BR'), subLabel: "Transações" },
-        // Filler 0 for stages we don't track yet
-        { stage: "Visualizações", users: 0, value: "-", subLabel: "Produtos" },
-        { stage: "Carrinho", users: 0, value: "-", subLabel: "Add ao Carrinho" },
-        { stage: "Checkout", users: 0, value: "-", subLabel: "Iniciado" },
     ];
 
     return (
@@ -45,36 +96,56 @@ export default async function OverviewPage(props: Props) {
                     </div>
                 </div>
 
-                {/* KPIs Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="p-6 rounded-xl bg-slate-900 border border-slate-800">
-                        <h3 className="text-sm font-medium text-slate-400">Receita Faturada (GA4)</h3>
-                        <p className="text-2xl font-bold text-white mt-2">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.revenue)}
-                        </p>
+                {/* Custom KPI Dashboard */}
+                <div className="space-y-8">
+
+                    {/* Row 1: Cost/Investment */}
+                    <div className="relative">
+                        <div className="absolute -top-3 left-6 z-10 bg-orange-500 rounded-full p-1.5 shadow-lg shadow-orange-900/20">
+                            <DollarSign className="text-white w-4 h-4" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <KPI_Card label="Investimento" value={data.kpis.investment} trend={1.0} prefix="R$ " />
+                            <KPI_Card label="% Custo" value={data.kpis.costPercentage} suffix="%" trend={4.3} />
+                        </div>
                     </div>
 
-                    <div className="p-6 rounded-xl bg-slate-900 border border-slate-800">
-                        <h3 className="text-sm font-medium text-slate-400">Receita (Tiny)</h3>
-                        <p className="text-2xl font-bold text-white mt-2">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.tinyTotalRevenue)}
-                        </p>
+                    {/* Row 2: Sales */}
+                    <div className="relative">
+                        <div className="absolute -top-3 left-6 z-10 bg-orange-500 rounded-full p-1.5 shadow-lg shadow-orange-900/20">
+                            <ShoppingCart className="text-white w-4 h-4" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <KPI_Card label="Ticket Médio" value={data.kpis.ticketAvg} trend={-6.8} prefix="R$ " invertTrend />
+                            <KPI_Card label="Ticket Médio Novos Clientes" value={data.kpis.ticketAvgNew} trend={2.6} prefix="R$ " />
+                            <KPI_Card label="Retenção" value={data.kpis.retentionRevenue} trend={-12.2} prefix="R$ " invertTrend />
+                            <KPI_Card label="Receita Nova" value={data.kpis.newRevenue} trend={22.0} prefix="R$ " />
+                        </div>
                     </div>
 
-                    <div className="p-6 rounded-xl bg-slate-900 border border-slate-800">
-                        <h3 className="text-sm font-medium text-slate-400">Investimento</h3>
-                        <p className="text-2xl font-bold text-white mt-2">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.investment)}
-                        </p>
-                        <span className="text-xs text-emerald-400 mt-1 block">⬆ 1.0%</span>
+                    {/* Row 3: Customers */}
+                    <div className="relative">
+                        <div className="absolute -top-3 left-6 z-10 bg-orange-500 rounded-full p-1.5 shadow-lg shadow-orange-900/20">
+                            <Users className="text-white w-4 h-4" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <KPI_Card label="Clientes Adquiridos" value={data.kpis.acquiredCustomers} trend={18.8} isCurrency={false} />
+                            <KPI_Card label="Custo de Aquisição (CAC)" value={data.kpis.cac} trend={-15.0} prefix="R$ " invertTrend />
+                        </div>
                     </div>
 
-                    <div className="p-6 rounded-xl bg-slate-900 border border-slate-800">
-                        <h3 className="text-sm font-medium text-slate-400">Projeção R$</h3>
-                        <p className="text-2xl font-bold text-white mt-2">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(projected)}
-                        </p>
+                    {/* Row 4: Long Term (12 Months) */}
+                    <div className="relative">
+                        <div className="absolute -top-3 left-6 z-10 bg-orange-500 rounded-full p-1.5 shadow-lg shadow-orange-900/20">
+                            <Rocket className="text-white w-4 h-4" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <KPI_Card label="Faturamento 12 Meses" value={data.kpis.revenue12m} trend={55.7} prefix="R$ " variant="dark" />
+                            <KPI_Card label="LTV 12 Meses" value={data.kpis.ltv12m} trend={55.7} prefix="R$ " variant="dark" />
+                            <KPI_Card label="ROI 12 Meses" value={data.kpis.roi12m} trend={198.7} isCurrency={false} variant="dark" />
+                        </div>
                     </div>
+
                 </div>
 
                 {/* Funnel Section Preview */}

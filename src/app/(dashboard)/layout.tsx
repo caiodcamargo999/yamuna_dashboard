@@ -9,7 +9,7 @@ export default function DashboardLayout({
     return (
         <div className="flex min-h-screen bg-slate-950">
             <Sidebar />
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
                 {/* Note: The Header title will need to be dynamic. 
             For now, we place the Header in the Layout, but realistically 
             each page might want to control its title or we use a context.

@@ -15,11 +15,10 @@ export default async function FunnelPage(props: Props) {
 
     const funnelData = [
         { stage: "Sessões", users: data.sessions, value: data.sessions.toLocaleString('pt-BR'), subLabel: "Sessões" },
+        { stage: "Produtos", users: Math.round(data.sessions * 0.6), value: "-", subLabel: "Estimado (60%)" }, // GA4 'itemsViewed' is handy but we didn't fetch it yet. Estimating for now.
+        { stage: "Carrinho", users: data.addToCarts, value: data.addToCarts.toLocaleString('pt-BR'), subLabel: "Add ao Carrinho" },
+        { stage: "Checkout", users: data.checkouts, value: data.checkouts.toLocaleString('pt-BR'), subLabel: "Checkout Iniciado" },
         { stage: "Transações", users: data.transactions, value: data.transactions.toLocaleString('pt-BR'), subLabel: "Transações" },
-        // Filler for other stages not yet tracked
-        { stage: "Produtos", users: 0, value: "-", subLabel: "Produtos Visualizados" },
-        { stage: "Carrinho", users: 0, value: "-", subLabel: "Add ao Carrinho" },
-        { stage: "Checkout", users: 0, value: "-", subLabel: "Checkout Iniciado" },
     ];
 
     return (

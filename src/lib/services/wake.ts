@@ -47,13 +47,19 @@ export async function getWakeProducts() {
 
 export async function getWakeOrders(startDate: string, endDate: string) {
     if (!WAKE_API_URL || !WAKE_API_TOKEN) {
-        console.warn("Missing Wake Credentials");
+        console.error("[Wake API] ❌ ERRO: Credenciais Wake não configuradas!");
+        console.error(`  - WAKE_API_URL: ${WAKE_API_URL ? 'Configurada' : 'FALTANDO'}`);
+        console.error(`  - WAKE_API_TOKEN: ${WAKE_API_TOKEN ? 'Configurada' : 'FALTANDO'}`);
         return [];
     }
 
-    // Wake / Fbits usually filters by dataInicial and dataFinal
-    // Check API docs format. Assuming YYYY-MM-DD based on standard REST
+    console.log(`[Wake API] ✓ Credenciais configuradas`);
+    console.log(`[Wake API] 📅 Buscando pedidos de ${startDate} até ${endDate}`);
+
+    const searchStart = Date.now();
+
     const url = `${WAKE_API_URL}/pedidos?dataInicial=${startDate}&dataFinal=${endDate}`;
+    console.log(`[Wake Fetch] URL: ${url}`);
 
     try {
         const res = await fetch(url, {
@@ -61,22 +67,42 @@ export async function getWakeOrders(startDate: string, endDate: string) {
                 'Authorization': `Basic ${WAKE_API_TOKEN}`,
                 'Accept': 'application/json'
             },
-            next: { revalidate: 300 }
+            next: { revalidate: 0 },  // Disable cache for debugging
+            cache: 'no-store'
         });
 
         if (!res.ok) {
-            console.error(`Wake Orders Error: ${res.status}`);
+            console.error(`[Wake API] ❌ Erro HTTP ${res.status}`);
+            const errorText = await res.text();
+            console.error(`[Wake API] Response: ${errorText.substring(0, 200)}`);
             return [];
         }
 
         const data = await res.json();
 
         // Return raw list, we will filter in actions.ts
-        // Adjust property access based on real response structure (usually data is root or under 'lista')
-        return Array.isArray(data) ? data : (data.lista || []);
+        const orders = Array.isArray(data) ? data : (data.lista || []);
 
-    } catch (error) {
-        console.error("Error fetching Wake orders:", error);
+        const searchTime = Date.now() - searchStart;
+        console.log(`[Wake API] ⏱️  Busca concluída em ${searchTime}ms`);
+        console.log(`[Wake API] 📦 Total de pedidos: ${orders.length}`);
+
+        if (orders.length > 0) {
+            console.log(`[Wake Sample] Estrutura do primeiro pedido:`, JSON.stringify(orders[0], null, 2));
+
+            // Check what fields exist for revenue
+            const firstOrder = orders[0];
+            console.log(`[Wake Debug] Campos disponíveis:`, Object.keys(firstOrder));
+            console.log(`[Wake Debug] valorTotal: ${firstOrder.valorTotal}`);
+            console.log(`[Wake Debug] total: ${firstOrder.total}`);
+        } else {
+            console.warn(`[Wake API] ⚠️  ATENÇÃO: Nenhum pedido encontrado para ${startDate} a ${endDate}`);
+        }
+
+        return orders;
+
+    } catch (error: any) {
+        console.error("[Wake API] ❌ Erro na requisição:", error.message);
         return [];
     }
 }

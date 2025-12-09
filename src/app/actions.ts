@@ -6,6 +6,7 @@ import { getMetaAdsInsights } from "@/lib/services/meta"; // Import Meta Service
 import { differenceInDays, subDays, parseISO, format, subMonths } from "date-fns";
 
 import { getWakeOrders } from "@/lib/services/wake";
+import { parseCurrency } from "@/lib/utils";
 
 export async function fetchDashboardData(startDate = "30daysAgo", endDate = "today") {
     // 1. Date Range Setup
@@ -41,6 +42,13 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     const metaAdsCost = metaData?.spend || 0;
     const totalInvestment = googleAdsCost + metaAdsCost;
 
+    console.log(`\n[Dashboard] 📊 RESUMO DE DADOS:`);
+    console.log(`  📅 Período: ${startStr} a ${endStr}`);
+    console.log(`  🛒 Pedidos Tiny: ${totalOrders}`);
+    console.log(`  💰 Receita Total: R$ ${totalRevenue.toFixed(2)}`);
+    console.log(`  📈 Investimento: R$ ${totalInvestment.toFixed(2)}`);
+
+
     // 4. "New Revenue" & "New Customers" Logic (Wake is Source of Truth for Customer Type)
     // Wake usually has a 'clienteNovo' boolean or we can infer it.
     // Assuming Wake Order structure has something to identify new user or we just count unique emails?
@@ -63,9 +71,12 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     let wakeNewRevenue = 0;
     let wakeNewCustomersCount = 0;
 
+
     if (wakeOrders && Array.isArray(wakeOrders)) {
+        console.log(`[Dashboard] 🌊 Processando ${wakeOrders.length} pedidos Wake...`);
+
         wakeOrders.forEach((o: any) => {
-            const val = parseFloat(o.valorTotal || o.total || 0);
+            const val = parseCurrency(o.valorTotal || o.total);
             wakeTotalRevenue += val;
 
             // Check for "New Client" flag. 
@@ -77,6 +88,12 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
                 wakeNewCustomersCount++;
             }
         });
+
+        console.log(`  💵 Wake - Receita Total: R$ ${wakeTotalRevenue.toFixed(2)}`);
+        console.log(`  ✨ Wake - Receita Novos: R$ ${wakeNewRevenue.toFixed(2)}`);
+        console.log(`  👥 Wake - Clientes Novos: ${wakeNewCustomersCount}`);
+    } else {
+        console.warn(`[Dashboard] ⚠️  Wake retornou dados inválidos ou vazios`);
     }
 
     // derived percentages from Wake

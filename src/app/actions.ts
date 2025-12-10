@@ -114,8 +114,8 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
 
     if (tinyOrders.length > 0) {
         console.log(`[Dashboard] 🔍 VERIFICAÇÃO DE PERÍODO:`);
-        console.log(`  - Primeiro pedido: ${tinyOrders[0].date || tinyOrders[0].data_pedido || 'sem data'}`);
-        console.log(`  - Último pedido: ${tinyOrders[tinyOrders.length - 1].date || tinyOrders[tinyOrders.length - 1].data_pedido || 'sem data'}`);
+        console.log(`  - Primeiro pedido: ${(tinyOrders[0] as any).date || (tinyOrders[0] as any).data_pedido || 'sem data'}`);
+        console.log(`  - Último pedido: ${(tinyOrders[tinyOrders.length - 1] as any).date || (tinyOrders[tinyOrders.length - 1] as any).data_pedido || 'sem data'}`);
     }
 
     // 3. Calculate Core Metrics

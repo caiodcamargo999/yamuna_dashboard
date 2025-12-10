@@ -185,17 +185,17 @@ export default async function DashboardPage(props: Props) {
                                 <div>
                                     <span className="text-sm text-slate-400">Receita</span>
                                     <p className="text-xl font-bold text-white">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.previous?.revenue || 0)}
+                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.revenueLastMonth || 0)}
                                     </p>
                                 </div>
                                 <div>
                                     <span className="text-sm text-slate-400">Investimento</span>
                                     <p className="text-xl font-bold text-white">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.previous?.investment || 0)}
+                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.investmentLastMonth || 0)}
                                     </p>
                                 </div>
                                 <div>
-                                    <span className="text-xs text-slate-500">Período: {data.previous?.range}</span>
+                                    <span className="text-xs text-slate-500">Período: {data.lastMonthLabel}</span>
                                     <div className="bg-slate-800 text-slate-500 font-bold p-2 text-center rounded mt-1">-</div>
                                 </div>
                             </div>

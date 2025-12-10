@@ -5,8 +5,17 @@ import { Suspense } from "react";
 import { getMetaTopCreatives } from "@/lib/services/meta";
 import { MetaAdsClient } from "./MetaAdsClient";
 
-export default async function MetaAdsPage({ searchParams }: { searchParams: Promise<{ start?: string; end?: string }> }) {
-    const params = await searchParams;
+export const revalidate = 60; // Cache for 60 seconds
+
+interface Props {
+    searchParams: {
+        start?: string;
+        end?: string;
+    };
+}
+
+export default async function MetaAdsPage({ searchParams }: Props) {
+    const params = searchParams; // searchParams is no longer a Promise
     const startDate = params.start || "30daysAgo";
     const endDate = params.end || "today";
 

@@ -77,11 +77,10 @@ export function Sidebar() {
                     {/* Logo Area */}
                     <div className="h-24 flex items-center px-6 border-b border-slate-800">
                         <div className="relative w-48 h-16">
-                            <Image
-                                src="/logo/yamuna_logo.png"
+                            <img
                                 alt="Yamuna Logo"
-                                fill
-                                className="object-contain object-left"
+                                className="w-auto h-10 object-contain"
+                                src="/logos/yamuna_logo.png"
                             />
                         </div>
                     </div>

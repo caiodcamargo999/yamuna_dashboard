@@ -1,12 +1,14 @@
 import { Header } from "@/components/layout/Header";
 import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 
+export const revalidate = 60; // Cache for 60 seconds
+
 interface Props {
-    searchParams: Promise<{ start?: string; end?: string }>;
+    searchParams: { start?: string; end?: string };
 }
 
 export default async function GoogleAdsPage(props: Props) {
-    const searchParams = await props.searchParams;
+    const searchParams = props.searchParams;
     const startDate = searchParams.start || "30daysAgo";
     const endDate = searchParams.end || "today";
 

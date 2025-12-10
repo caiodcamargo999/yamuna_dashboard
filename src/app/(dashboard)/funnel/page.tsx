@@ -6,12 +6,14 @@ import { MonthComparison } from "@/components/funnel/MonthComparison";
 import { TopProducts } from "@/components/funnel/TopProducts";
 import { ShoppingCart, TrendingUp } from "lucide-react";
 
+export const revalidate = 60; // Cache for 60 seconds
+
 interface Props {
-    searchParams: Promise<{ start?: string; end?: string }>;
+    searchParams: { start?: string; end?: string };
 }
 
 export default async function FunnelPage(props: Props) {
-    const searchParams = await props.searchParams;
+    const searchParams = props.searchParams;
     const startDate = searchParams.start || "30daysAgo";
     const endDate = searchParams.end || "today";
 

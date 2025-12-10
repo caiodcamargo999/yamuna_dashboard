@@ -35,7 +35,8 @@ export async function getGoogleAnalyticsData(startDate: string, endDate: string)
                     metrics: [
                         { name: "totalRevenue" },
                         { name: "transactions" },
-                        { name: "totalUsers" }, // Total users instead of purchasers
+                        { name: "totalUsers" },
+                        { name: "newUsers" },
                     ],
                 },
             }),
@@ -67,13 +68,16 @@ export async function getGoogleAnalyticsData(startDate: string, endDate: string)
         ]);
 
         const sessionsRow = sessionsReport.data.rows?.[0];
-        const eventsRow = eventsReport.data.rows?.[0];
+        const events = eventsReport.data.rows?.[0]?.metricValues || [];
+        const revenue = parseFloat(events[0]?.value || "0");
+        const transactions = parseInt(events[1]?.value || "0");
+        const users = parseInt(events[2]?.value || "0");
+        const newUsers = parseInt(events[3]?.value || "0");
 
-        // Parse Event Counts
-        const eventRows = eventCountsReport.data.rows || [];
+        // Helper to get event count
         const getEventCount = (name: string) => {
-            const row = eventRows.find((r: any) => r.dimensionValues?.[0]?.value === name);
-            return row ? parseInt(row.metricValues?.[0]?.value || "0") : 0;
+            const row = eventCountsReport.data.rows?.find((r) => r.dimensionValues?.[0].value === name);
+            return parseInt(row?.metricValues?.[0].value || "0");
         };
 
         // Aggregate Ad Cost
@@ -86,13 +90,15 @@ export async function getGoogleAnalyticsData(startDate: string, endDate: string)
 
         return {
             sessions: parseInt(sessionsRow?.metricValues?.[0]?.value || "0"),
-            totalRevenue: parseFloat(eventsRow?.metricValues?.[0]?.value || "0"),
-            transactions: parseInt(eventsRow?.metricValues?.[1]?.value || "0"),
-            purchasers: purchaseCount > 0 ? purchaseCount : parseInt(eventsRow?.metricValues?.[2]?.value || "0"), // Approximate with totalUsers or purchase events
+            totalRevenue: revenue,
+            transactions: transactions,
+            purchasers: users, // Total users during period
+            newUsers: newUsers,
             addToCarts: getEventCount("add_to_cart"),
             checkouts: getEventCount("begin_checkout"),
             itemsViewed: getEventCount("view_item"),
-            investment: totalInvestment,
+            investment: totalInvestment, // Ads spend
+            roas: totalInvestment > 0 ? revenue / totalInvestment : 0
         };
     } catch (error: any) {
         console.error("Error fetching GA4 data:", error);

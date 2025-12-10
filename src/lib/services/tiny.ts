@@ -45,7 +45,7 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     let allOrders: TinyOrder[] = [];
     let page = 1;
     let hasMore = true;
-    const maxPages = 10; // Limit for performance
+    const maxPages = 20; // Balanced limit: 20 pages (2000 orders) for speed vs data completeness
 
     while (hasMore && page <= maxPages) {
         let url = `https://api.tiny.com.br/api2/pedidos.pesquisa.php?token=${TINY_TOKEN}&formato=json&pagina=${page}`;
@@ -54,26 +54,37 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
         if (endDate) url += `&data_final=${formatDate(endDate)}`;
 
         try {
+            console.log(`[Tiny API] 🔍 Fetching page ${page}... URL: ${url}`);
             const res = await fetch(url, {
                 next: { revalidate: 0 },
                 cache: 'no-store'
             });
-            const data = await res.json();
 
-            if (data.retorno.status === "Erro") {
-                console.log("[Tiny] No more records");
-                hasMore = false;
+            if (!res.ok) {
+                console.error(`[Tiny API] ❌ HTTP Error: ${res.status}`);
                 break;
             }
 
-            const orders: TinyOrder[] = data.retorno.pedidos || [];
-            console.log(`[Tiny Page ${page}] 📦 ${orders.length} pedidos`);
+            const data = await res.json();
 
-            if (orders.length === 0) {
+            // Log response structure to debug
+            // console.log(`[Tiny API] Response keys:`, Object.keys(data));
+
+            if (data.retorno?.status_processamento === 3 || !data.retorno?.pedidos) {
+                // Status 3 = No records found or end of list
+                // console.log(`[Tiny API] ℹ️ End of data at page ${page}`);
                 hasMore = false;
             } else {
+                const orders = data.retorno.pedidos;
                 allOrders = [...allOrders, ...orders];
-                page++;
+                console.log(`[Tiny API] ✅ Page ${page} received ${orders.length} orders. Total so far: ${allOrders.length}`);
+
+                // If page full (usually 100), maybe more pages
+                if (orders.length < 100) {
+                    hasMore = false;
+                } else {
+                    page++;
+                }
             }
         } catch (error) {
             console.error("Error fetching Tiny:", error);

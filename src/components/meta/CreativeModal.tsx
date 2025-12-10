@@ -10,6 +10,7 @@ interface CreativeModalProps {
         name: string;
         imageUrl?: string;
         videoUrl?: string;
+        embedHtml?: string;
         type: 'image' | 'video';
     } | null;
 }
@@ -56,22 +57,40 @@ export function CreativeModal({ isOpen, onClose, creative }: CreativeModalProps)
 
                 {/* Content */}
                 <div className="p-6">
-                    {creative.type === 'video' && creative.videoUrl ? (
-                        <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
-                            <video
-                                controls
-                                autoPlay
-                                muted
-                                playsInline
-                                loop
-                                className="w-full h-full"
-                                src={creative.videoUrl}
-                                onError={(e) => {
-                                    console.error("Video failed to load:", creative.videoUrl);
-                                }}
-                            >
-                                Seu navegador não suporta vídeo.
-                            </video>
+                    {creative.type === 'video' ? (
+                        <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
+                            {creative.videoUrl ? (
+                                <video
+                                    controls
+                                    autoPlay
+                                    muted
+                                    playsInline
+                                    loop
+                                    className="w-full h-full"
+                                    src={creative.videoUrl}
+                                    onError={(e) => {
+                                        console.error("Video failed to load:", creative.videoUrl);
+                                    }}
+                                >
+                                    Seu navegador não suporta vídeo.
+                                </video>
+                            ) : creative.embedHtml ? (
+                                <div
+                                    className="w-full h-full flex items-center justify-center bg-black [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0"
+                                    dangerouslySetInnerHTML={{
+                                        __html: creative.embedHtml.replace('<iframe', '<iframe allow="autoplay; encrypted-media" allowfullscreen')
+                                    }}
+                                />
+                            ) : creative.imageUrl ? (
+                                <img
+                                    src={creative.imageUrl}
+                                    alt={creative.name}
+                                    className="w-full h-full object-contain"
+                                    referrerPolicy="no-referrer"
+                                />
+                            ) : (
+                                <div className="text-slate-500">Vídeo indisponível (Sem URL ou Embed)</div>
+                            )}
                         </div>
                     ) : creative.imageUrl ? (
                         <div className="relative w-full">
@@ -87,6 +106,16 @@ export function CreativeModal({ isOpen, onClose, creative }: CreativeModalProps)
                             <p className="text-slate-400">Nenhuma mídia disponível</p>
                         </div>
                     )}
+
+                    {/* TEMPORARY DEBUG INFO */}
+                    <div className="mt-4 p-2 bg-slate-950 rounded text-[10px] text-slate-500 font-mono break-all border border-slate-800">
+                        <p>DEBUG INFO:</p>
+                        <p>Type: {creative.type}</p>
+                        <p>Has Video URL: {creative.videoUrl ? "YES" : "NO"}</p>
+                        <p>Has Embed HTML: {creative.embedHtml ? "YES" : "NO"}</p>
+                        {creative.videoUrl && <p>URL: {creative.videoUrl.substring(0, 50)}...</p>}
+                        {creative.embedHtml && <p>Embed Snippet: {creative.embedHtml.substring(0, 50)}...</p>}
+                    </div>
                 </div>
 
                 {/* Footer with metadata */}

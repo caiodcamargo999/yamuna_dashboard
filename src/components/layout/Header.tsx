@@ -49,21 +49,17 @@ export function Header({ title }: { title: string }) {
         setAppliedEnd(endDate);
         setShowMobileModal(false);
 
-        // Use router.push with params then immediately refresh to fetch new data
-        // This triggers server component re-render without keeping params in URL
+        // Build URL params
         const params = new URLSearchParams();
         params.set("start", startDate);
         params.set("end", endDate);
 
-        // Push to URL temporarily for server data fetch
+        // Push URL with params - this is what makes it work!
         router.push(`${pathname}?${params.toString()}`);
+        router.refresh(); // Refresh server text
 
-        // Immediately refresh to re-fetch server data
-        setTimeout(() => {
-            router.refresh();
-            // Clean URL after refresh
-            router.replace(pathname, { scroll: false });
-        }, 100);
+        // Simple feedback since we don't have a toast lib yet
+        // In a real app we'd use sonner/toast
     };
 
     const handleMobileFilter = () => {
@@ -106,7 +102,11 @@ export function Header({ title }: { title: string }) {
                             if (window.innerWidth < 768) {
                                 handleMobileFilter();
                             } else {
+                                const btn = document.activeElement as HTMLButtonElement;
+                                if (btn) btn.innerText = "Filtrando...";
                                 handleApply();
+                                setTimeout(() => { if (btn) btn.innerText = "Filtro Aplicado!"; }, 500);
+                                setTimeout(() => { if (btn) btn.innerText = "Filtrar"; }, 2000);
                             }
                         }}
                         className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-3 py-2 rounded transition-colors whitespace-nowrap"

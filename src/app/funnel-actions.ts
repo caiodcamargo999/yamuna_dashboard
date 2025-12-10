@@ -2,12 +2,15 @@
 
 import { getGoogleAnalyticsData } from "@/lib/services/google";
 import { getTinyOrders } from "@/lib/services/tiny";
+import { getMetaAdsInsights } from "@/lib/services/meta";
 import { getTopProductsByPeriod } from "@/lib/services/tiny-products";
 import { getCurrentMonthGoal, getPreviousMonthGoal, setMonthlyGoal as setGoalDB } from "@/lib/supabase/goals";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, subDays } from "date-fns";
 import { parseCurrency } from "@/lib/utils";
 
 export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today") {
+    console.log(`[fetchFunnelData] 📅 Called with: startDate="${startDate}", endDate="${endDate}"`);
+
     // 1. Date Range Setup
     let currentStart: Date;
     let currentEnd: Date;
@@ -44,9 +47,10 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
         selectedPeriodTiny,
         selectedPeriodProducts,
         currentMonthGA4,
-        currentMonthTiny,
+        currentMonthMeta,
+        getAllTinyOrdersResults, // Fetch once and filter in memory to save API calls? No, better fetch specific ranges to avoid huge payload, but use CLIENT SIDE filtering to be safe.
         prevMonthGA4,
-        prevMonthTiny,
+        prevMonthMeta,
         currentGoal,
         prevGoal
     ] = await Promise.all([
@@ -54,34 +58,61 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
         getTinyOrders(startStr, endStr),
         getTopProductsByPeriod(startStr, endStr, 10),
         getGoogleAnalyticsData(currentMonthStart, currentMonthEnd),
-        getTinyOrders(currentMonthStart, currentMonthEnd),
+        getMetaAdsInsights(currentMonthStart, currentMonthEnd),
+        getTinyOrders(currentMonthStart, currentMonthEnd), // Fetching current month tiny again
         getGoogleAnalyticsData(prevMonthStart, prevMonthEnd),
-        getTinyOrders(prevMonthStart, prevMonthEnd),
+        getMetaAdsInsights(prevMonthStart, prevMonthEnd),
         getCurrentMonthGoal(),
         getPreviousMonthGoal()
     ]);
+
+    // Helper to safely filter orders by date (Client-side safety net)
+    const filterOrdersByDate = (orders: any[], start: string, end: string) => {
+        if (!orders || !Array.isArray(orders)) return [];
+        const startDate = parseISO(start);
+        const endDate = parseISO(end);
+        // Set end date to end of day
+        endDate.setHours(23, 59, 59, 999);
+
+        return orders.filter(o => {
+            const d = parseISO(o.pedido.data_pedido); // data_pedido is YYYY-MM-DD
+            return d >= startDate && d <= endDate;
+        });
+    };
+
+    // Re-filter Tiny Orders because API sometimes ignores date params if misused
+    const safeSelectedTiny = filterOrdersByDate(selectedPeriodTiny, startStr, endStr);
+    const currentMonthTinyFiltered = filterOrdersByDate(getAllTinyOrdersResults, currentMonthStart, currentMonthEnd);
+    // Actually, 'prevMonthTiny' was missing from Promise.all in my edit above, I need to restore logic properly.
+    // Let's retry the Promise.all structure carefully.
 
     // 5. Calculate selected period metrics
     const selectedSessions = selectedPeriodGA4?.sessions || 0;
     const selectedAddToCarts = selectedPeriodGA4?.addToCarts || 0;
     const selectedCheckouts = selectedPeriodGA4?.checkouts || 0;
-    const selectedTransactions = selectedPeriodTiny?.length || 0;
-    const selectedRevenue = selectedPeriodTiny?.reduce((sum, order: any) => sum + (order.total || 0), 0) || 0;
+    const selectedTransactions = safeSelectedTiny.length || 0;
+    const selectedRevenue = safeSelectedTiny.reduce((sum, order: any) => sum + (parseCurrency(order.pedido.valor_total) || 0), 0) || 0; // Use parseCurrency just in case
 
     console.log(`[Funnel Debug] Selected Period: ${startStr} to ${endStr}`);
     console.log(`[Funnel Debug] Transactions: ${selectedTransactions}, Revenue: R$ ${selectedRevenue.toFixed(2)}`);
-    console.log(`[Funnel Debug] First 3 orders:`, selectedPeriodTiny?.slice(0, 3));
 
     // 6. Calculate current month metrics
     const currentMonthSessions = currentMonthGA4?.sessions || 0;
-    const currentMonthRevenue = currentMonthTiny?.reduce((sum, order: any) => sum + (order.total || 0), 0) || 0;
-    const currentMonthTransactions = currentMonthTiny?.length || 0;
-    const currentMonthInvestment = (currentMonthGA4?.investment || 0);
+    const currentMonthRevenue = currentMonthTinyFiltered.reduce((sum, order: any) => sum + (parseCurrency(order.pedido.valor_total) || 0), 0) || 0;
+    const currentMonthTransactions = currentMonthTinyFiltered.length || 0;
+    const currentMonthInvestment = (currentMonthGA4?.investment || 0) + (currentMonthMeta?.spend || 0);
 
     // 7. Calculate previous month metrics
-    const prevMonthRevenue = prevMonthTiny?.reduce((sum, order: any) => sum + (order.total || 0), 0) || 0;
-    const prevMonthTransactions = prevMonthTiny?.length || 0;
-    const prevMonthInvestment = (prevMonthGA4?.investment || 0);
+    // Fetch prev month orders separately or reuse filter? I need to fetch them.
+    // I missed fetching prevMonthTiny in the destructuring above.
+    // I will refetch prevMonthTiny inside the function flow for cleanliness or do cleaner Promise.all
+
+    const prevMonthTiny = await getTinyOrders(prevMonthStart, prevMonthEnd);
+    const safePrevMonthTiny = filterOrdersByDate(prevMonthTiny, prevMonthStart, prevMonthEnd);
+
+    const prevMonthRevenue = safePrevMonthTiny.reduce((sum, order: any) => sum + (parseCurrency(order.pedido.valor_total) || 0), 0) || 0;
+    const prevMonthTransactions = safePrevMonthTiny.length || 0;
+    const prevMonthInvestment = (prevMonthGA4?.investment || 0) + (prevMonthMeta?.spend || 0); // Add Meta
 
     // 8. Calculate conversion rates
     const cartRate = selectedSessions > 0 ? (selectedAddToCarts / selectedSessions) * 100 : 0;
@@ -92,14 +123,12 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
     const avgTicket = selectedTransactions > 0 ? selectedRevenue / selectedTransactions : 0;
     const sessionsPerCart = selectedAddToCarts > 0 ? selectedSessions / selectedAddToCarts : 0;
 
-    console.log(`[Funnel Debug] Avg Ticket Calculation: R$ ${selectedRevenue.toFixed(2)} / ${selectedTransactions} = R$ ${avgTicket.toFixed(2)}`);
-    if (avgTicket > 100000) {
-        console.warn(`[Funnel Warning] ⚠️ Ticket médio muito alto! Verifique dados do Tiny.`);
-    }
-
     // 10. Calculate projections and goals
     const daysInMonth = endOfMonth(new Date()).getDate();
     const currentDay = new Date().getDate();
+
+    // Projection Logic: (Revenue / DaysPassed) * TotalDays
+    // If today is 1st, multipy by DaysInMonth.
     const projectedRevenue = currentDay > 0 ? (currentMonthRevenue / currentDay) * daysInMonth : 0;
     const projectedTransactions = currentDay > 0 ? Math.round((currentMonthTransactions / currentDay) * daysInMonth) : 0;
 

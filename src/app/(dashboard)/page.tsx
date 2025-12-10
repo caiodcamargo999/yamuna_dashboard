@@ -1,7 +1,13 @@
 import { Header } from "@/components/layout/Header";
 import { FunnelOverview } from "@/components/charts/FunnelOverview";
 import { fetchDashboardData } from "@/app/actions";
+import { Suspense } from "react";
 import { DollarSign, ShoppingCart, Users, Rocket } from "lucide-react";
+import { format, subDays, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+// Cache data for 60 seconds to improve performance
+export const revalidate = 60;
 
 // Helper Component for the Cards
 function KPI_Card({ label, value, prefix = "", suffix = "", trend, invertTrend = false, isCurrency = true, variant = "default" }: any) {
@@ -61,10 +67,12 @@ interface Props {
     searchParams: Promise<{ start?: string; end?: string }>;
 }
 
-export default async function OverviewPage(props: Props) {
+export default async function DashboardPage(props: Props) {
     const searchParams = await props.searchParams;
     const startDate = searchParams.start || "30daysAgo";
     const endDate = searchParams.end || "today";
+
+    console.log(`[Dashboard] 🔍 Fetching data from ${startDate} to ${endDate}`);
 
     // Fetch real data on server side
     const data = await fetchDashboardData(startDate, endDate);
@@ -89,19 +97,23 @@ export default async function OverviewPage(props: Props) {
         { stage: "Transações", users: data.transactions, value: data.transactions.toLocaleString('pt-BR'), subLabel: "Transações" },
     ];
 
+    // Calculate display strings for Filter Status
+    const displayStart = startDate === "30daysAgo"
+        ? format(subDays(new Date(), 30), "dd/MM/yyyy")
+        : format(parseISO(startDate), "dd/MM/yyyy");
+
+    const displayEnd = endDate === "today"
+        ? format(new Date(), "dd/MM/yyyy")
+        : format(parseISO(endDate), "dd/MM/yyyy");
+
     return (
         <>
             <Header title="Check-in Loja Virtual" />
-            <main className="p-6 space-y-6 overflow-y-auto w-full">
-                {/* Debug Info */}
-                <div className="text-xs text-slate-500 flex flex-col gap-1">
-                    <div className="flex gap-2">
-                        <span>GA4: {data.source}</span>
-                        <span>| Tiny: {data.tinySource}</span>
-                    </div>
-                    <div>
-                        Filtro Ativo: {data.dateRange?.start} até {data.dateRange?.end}
-                    </div>
+            <div className="p-4 lg:p-8 space-y-6">
+
+                {/* Active Filter Indicator */}
+                <div className="text-xs text-slate-400 -mt-4 mb-4">
+                    Filtro Ativo: <span className="text-indigo-400 font-medium">{displayStart} até {displayEnd}</span>
                 </div>
 
                 {/* Custom KPI Dashboard */}
@@ -189,7 +201,7 @@ export default async function OverviewPage(props: Props) {
                         </div>
                     </div>
                 </div>
-            </main>
+            </div>
         </>
     );
 }

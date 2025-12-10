@@ -9,6 +9,8 @@ import { getWakeOrders } from "@/lib/services/wake";
 import { parseCurrency } from "@/lib/utils";
 
 export async function fetchDashboardData(startDate = "30daysAgo", endDate = "today") {
+    console.log(`[fetchDashboardData] 📅 Called with: startDate="${startDate}", endDate="${endDate}"`);
+
     // 1. Date Range Setup
     let currentStart: Date;
     let currentEnd: Date;
@@ -23,6 +25,8 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
 
     const startStr = format(currentStart, "yyyy-MM-dd");
     const endStr = format(currentEnd, "yyyy-MM-dd");
+
+    console.log(`[fetchDashboardData] 🎯 Parsed dates: ${startStr} to ${endStr}`);
 
     // 2. Fetch Data (Parallel)
     const [googleData, tinyOrders, metaData, wakeOrders] = await Promise.all([
@@ -97,14 +101,28 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     }
 
     // derived percentages from Wake
-    const newRevenueShare = wakeTotalRevenue > 0 ? wakeNewRevenue / wakeTotalRevenue : 0.25; // FALLBACK: 25% são novos clientes (padrão e-commerce)
+    // derived percentages from Wake or fallback to GA4
+    let newRevenueShare = 0.25; // Default fallback
+
+    if (wakeTotalRevenue > 0) {
+        newRevenueShare = wakeNewRevenue / wakeTotalRevenue;
+    } else if (googleData && googleData.purchasers && googleData.purchasers > 0) {
+        // Fallback: Use GA4 New Users ratio
+        const newUserCount = googleData.newUsers || 0;
+        const ratio = newUserCount / googleData.purchasers;
+        newRevenueShare = Math.min(Math.max(ratio, 0.1), 0.9); // Clamp between 10% and 90%
+        console.log(`[Dashboard] ℹ️ Usando GA4 Ratio para novos clientes: ${(newRevenueShare * 100).toFixed(1)}%`);
+    }
 
     // Apply to Tiny numbers for consistency
     const newRevenue = totalRevenue * newRevenueShare;
     const retentionRevenue = totalRevenue - newRevenue;
 
     // Estimate new customers count if Wake doesn't provide
-    const estimatedNewCustomers = wakeNewCustomersCount > 0 ? wakeNewCustomersCount : Math.round(totalOrders * 0.25);
+    const estimatedNewCustomers = wakeNewCustomersCount > 0
+        ? wakeNewCustomersCount
+        : Math.round(totalOrders * newRevenueShare);
+
     const newCustomersCount = estimatedNewCustomers;
 
     console.log(`[Dashboard] 📊 Cálculos finais:`);

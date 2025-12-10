@@ -11,6 +11,7 @@ interface Creative {
     imageUrl: string;
     videoUrl?: string | null;
     videoId?: string | null;
+    embedHtml?: string | null;
     creativeType: 'image' | 'video';
     campaignObjective: string;
     spend: number;
@@ -244,6 +245,7 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
                     name: selectedCreative.name,
                     imageUrl: selectedCreative.imageUrl,
                     videoUrl: selectedCreative.videoUrl || undefined,
+                    embedHtml: selectedCreative.embedHtml || undefined,
                     type: selectedCreative.creativeType
                 } : null}
             />

@@ -107,52 +107,93 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
         });
         const adsData = await adsRes.json();
 
-        // 3. Fetch video URLs for all video creatives
-        const videoIdsToFetch = rows
-            .map((r: any) => adsData[r.ad_id]?.creative?.video_id)
-            .filter(Boolean);
+        // Fetch video URLs if needed
+        const videoIds = [...new Set(
+            rows
+                .map((r: any) => adsData[r.ad_id]?.creative?.video_id)
+                .filter(Boolean)
+        )];
 
-        const videoUrlMap = new Map<string, string>();
+        console.log(`[Meta Ads] 🎥 Fetching ${videoIds.length} video URLs from Facebook API...`);
+        console.log(`[Meta Ads] Video IDs to fetch:`, videoIds);
 
-        if (videoIdsToFetch.length > 0) {
-            console.log(`[Meta Ads] 🎥 Fetching ${videoIdsToFetch.length} video URLs from Facebook API...`);
-            console.log(`[Meta Ads] Video IDs to fetch:`, videoIdsToFetch);
+        const videoUrlMap: Record<string, { videoUrl: string; thumbnailUrl: string; embedHtml: string }> = {};
 
-            await Promise.all(
-                videoIdsToFetch.map(async (videoId: string) => {
+        if (videoIds.length > 0) {
+            try {
+                // Fetch video data with embed_html, picture, and source
+                const videoPromises = videoIds.map(async (videoId) => {
                     try {
-                        const videoUrl = `https://graph.facebook.com/v19.0/${videoId}?fields=source&access_token=${ACCESS_TOKEN}`;
-                        const videoRes = await fetch(videoUrl);
-                        if (videoRes.ok) {
-                            const videoData = await videoRes.json();
-                            if (videoData.source) {
-                                videoUrlMap.set(videoId, videoData.source);
-                                console.log(`[Meta Ads] ✅ Video ${videoId} URL fetched successfully`);
-                            } else {
-                                console.warn(`[Meta Ads] ⚠️ Video ${videoId} has no source field`);
-                            }
-                        } else {
-                            console.error(`[Meta Ads] ❌ Failed to fetch video ${videoId}: ${videoRes.status}`);
+                        const videoResponse = await fetch(
+                            `https://graph.facebook.com/v19.0/${videoId}?fields=embed_html,picture,source,thumbnails&access_token=${ACCESS_TOKEN}`,
+                            { next: { revalidate: 0 }, cache: 'no-store' }
+                        );
+
+                        if (!videoResponse.ok) {
+                            console.log(`[Meta Ads] ⚠️ Could not fetch video ${videoId}: ${videoResponse.status}`);
+                            return null;
                         }
-                    } catch (error) {
-                        console.error(`[Meta Ads] ❌ Exception fetching video ${videoId}:`, error);
+
+                        const videoData = await videoResponse.json();
+
+                        // Try to extract video URL from embed_html or use source
+                        let videoUrl = null;
+
+                        if (videoData.source) {
+                            videoUrl = videoData.source;
+                        } else if (videoData.embed_html) {
+                            // Extract src from iframe in embed_html
+                            const srcMatch = videoData.embed_html.match(/src="([^"]+)"/);
+                            if (srcMatch) {
+                                videoUrl = srcMatch[1];
+                            }
+                        }
+
+                        const thumbnailUrl = videoData.picture || videoData.thumbnails?.data?.[0]?.uri || null;
+                        const embedHtml = videoData.embed_html || null;
+
+                        if (videoUrl) {
+                            console.log(`[Meta Ads] ✅ Video ${videoId}: ${videoUrl.substring(0, 50)}...`);
+                            return { videoId, videoUrl, thumbnailUrl, embedHtml };
+                        } else {
+                            console.log(`[Meta Ads] ⚠️ Video ${videoId} has no playable source, using embed fallback if available`);
+                            return { videoId, videoUrl: null, thumbnailUrl, embedHtml };
+                        }
+                    } catch (err) {
+                        console.error(`[Meta Ads] Error fetching video ${videoId}:`, err);
+                        return null;
                     }
-                })
-            );
+                });
 
-            console.log(`[Meta Ads] 📊 Successfully fetched ${videoUrlMap.size}/${videoIdsToFetch.length} video URLs`);
-        } else {
-            console.log(`[Meta Ads] ℹ️ No video ads found in this period`);
-        }
+                const videoResults = await Promise.all(videoPromises);
+                const successCount = videoResults.filter(v => v && v.videoUrl).length;
 
-        // 4. Merge Data
+                videoResults.forEach(result => {
+                    if (result) {
+                        videoUrlMap[result.videoId as string] = {
+                            videoUrl: result.videoUrl || '', // Might be empty if only embed exists
+                            thumbnailUrl: result.thumbnailUrl || '',
+                            embedHtml: result.embedHtml || '' // Store embed html
+                        };
+                    }
+                });
+
+                console.log(`[Meta Ads] 📊 Successfully fetched ${successCount}/${videoIds.length} video URLs`);
+            } catch (error) {
+                console.error('[Meta Ads] Error fetching video URLs:', error);
+            }
+        }      // 4. Merge Data
         return rows.map((row: any) => {
             const adDetails = adsData[row.ad_id] || {};
             const creative = adDetails.creative || {};
 
             let spend = parseFloat(row.spend || "0");
             let clicks = parseInt(row.clicks || "0");
-            let ctr = parseFloat(row.ctr || "0") / 100; // Convert from percentage to decimal
+            let ctr = parseFloat(row.ctr || "0");
+
+            // Debug CTR only for first row to avoid spam
+            if (row === rows[0]) console.log(`[Meta Ads] 🔍 Debug CTR: Raw="${row.ctr}", Parsed=${ctr}`);
+
             let cpc = parseFloat(row.cpc || "0");
             let revenue = 0;
             let purchases = 0;
@@ -191,14 +232,13 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
             // Determine creative type and URLs
             const videoId = creative.video_id || null;
             const hasVideo = !!videoId;
-            const videoUrl = videoId ? (videoUrlMap.get(videoId) || null) : null;
 
             return {
                 id: row.ad_id,
                 name: adDetails.name || row.ad_name,
                 status: adDetails.status || "UNKNOWN",
                 imageUrl: creative.image_url || creative.thumbnail_url || "",
-                videoUrl: videoUrl,
+                videoUrl: null, // Will be populated in the next step
                 videoId: videoId,
                 creativeType: hasVideo ? 'video' : 'image',
                 campaignObjective: adDetails.campaign?.objective || 'UNKNOWN',
@@ -215,6 +255,28 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
             };
         }).filter(Boolean);
 
+        // Map video URLs to results
+        const resultsWithVideos = rows.map((creative: any) => {
+            if (creative.creativeType === 'video' && creative.videoId && videoUrlMap[creative.videoId]) {
+                const mapped = videoUrlMap[creative.videoId];
+                return {
+                    ...creative,
+                    videoUrl: mapped.videoUrl || null,
+                    thumbnailUrl: mapped.thumbnailUrl || null,
+                    embedHtml: mapped.embedHtml || null // Pass embed HTML
+                };
+            }
+            return creative;
+        });
+
+        console.log(`[Meta Ads] 📹 Final creative data:`, resultsWithVideos.slice(0, 3).map((c: any) => ({
+            name: c.name,
+            type: c.creativeType,
+            hasVideo: !!c.videoUrl,
+            hasThumbnail: !!c.thumbnailUrl
+        })));
+
+        return resultsWithVideos;
 
     } catch (e) {
         console.error("[Meta Ads] Critical Error:", e);

@@ -6,8 +6,8 @@ import { getMetaTopCreatives } from "@/lib/services/meta";
 import { MetaAdsClient } from "./MetaAdsClient";
 
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// Enable ISR with 5 minute revalidation
+export const revalidate = 300;
 
 interface Props {
     searchParams: {

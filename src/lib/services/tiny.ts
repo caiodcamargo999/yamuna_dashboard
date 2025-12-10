@@ -1,6 +1,6 @@
 const TINY_TOKEN = process.env.TINY_API_TOKEN;
 
-interface TinyOrder {
+interface TinyOrderBasic {
     pedido: {
         id: string;
         numero: string;
@@ -8,6 +8,19 @@ interface TinyOrder {
         valor_total: string;
         situacao: string;
     };
+}
+
+interface TinyOrderDetail {
+    id: string;
+    numero: string;
+    date: string;
+    total: number;
+    status: string;
+    customerId: string;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    raw?: any;
 }
 
 // Helper to format date dd/mm/yyyy
@@ -33,6 +46,120 @@ function parseCurrency(value: string | number | undefined): number {
     return parseFloat(value);
 }
 
+// Cache for order details to avoid repeated API calls
+const orderDetailsCache = new Map<string, TinyOrderDetail>();
+
+/**
+ * Get detailed order info including customer data
+ * Uses pedido.obter.php endpoint
+ */
+async function getTinyOrderDetail(orderId: string): Promise<TinyOrderDetail | null> {
+    // Check cache first
+    if (orderDetailsCache.has(orderId)) {
+        return orderDetailsCache.get(orderId)!;
+    }
+
+    if (!TINY_TOKEN) return null;
+
+    try {
+        const url = `https://api.tiny.com.br/api2/pedido.obter.php?token=${TINY_TOKEN}&id=${orderId}&formato=json`;
+        const res = await fetch(url, {
+            next: { revalidate: 0 },
+            cache: 'no-store'
+        });
+
+        if (!res.ok) return null;
+
+        const data = await res.json();
+
+        if (data.retorno?.status === "Erro" || !data.retorno?.pedido) {
+            return null;
+        }
+
+        const pedido = data.retorno.pedido;
+        const cliente = pedido.cliente || {};
+
+        const detail: TinyOrderDetail = {
+            id: pedido.id || orderId,
+            numero: pedido.numero || "",
+            date: pedido.data_pedido || "",
+            total: parseCurrency(pedido.total_pedido || pedido.valor || "0"),
+            status: pedido.situacao || "",
+            customerId: cliente.codigo || cliente.id || cliente.cpf_cnpj || cliente.email || `cliente_${orderId}`,
+            customerName: cliente.nome || "Cliente",
+            customerEmail: cliente.email || "",
+            customerPhone: cliente.fone || "",
+            raw: pedido
+        };
+
+        // Cache the result
+        orderDetailsCache.set(orderId, detail);
+        return detail;
+
+    } catch (error) {
+        console.error(`[Tiny API] Error fetching order ${orderId}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Get orders with FULL customer data
+ * This fetches basic list then enriches with customer details
+ * Note: More API calls but accurate data
+ */
+export async function getTinyOrdersWithCustomers(startDate?: string, endDate?: string): Promise<TinyOrderDetail[]> {
+    // First get basic order list
+    const basicOrders = await getTinyOrders(startDate, endDate);
+
+    if (basicOrders.length === 0) return [];
+
+    console.log(`[Tiny API] 🔍 Fetching customer details for ${basicOrders.length} orders...`);
+
+    // Limit to avoid API rate limits (Tiny has limits)
+    const ordersToEnrich = basicOrders.slice(0, 100); // Max 100 detailed requests
+
+    // Fetch order details in batches of 10 to avoid rate limits
+    const batchSize = 10;
+    const enrichedOrders: TinyOrderDetail[] = [];
+
+    for (let i = 0; i < ordersToEnrich.length; i += batchSize) {
+        const batch = ordersToEnrich.slice(i, i + batchSize);
+
+        const details = await Promise.all(
+            batch.map(order => getTinyOrderDetail(order.id))
+        );
+
+        details.forEach(detail => {
+            if (detail) enrichedOrders.push(detail);
+        });
+
+        // Small delay between batches to respect API limits
+        if (i + batchSize < ordersToEnrich.length) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+    }
+
+    console.log(`[Tiny API] ✅ Enriched ${enrichedOrders.length} orders with customer data`);
+
+    // Log sample for debugging
+    if (enrichedOrders.length > 0) {
+        const sample = enrichedOrders[0];
+        console.log(`[Tiny Debug] Sample enriched order:`, {
+            id: sample.id,
+            customerName: sample.customerName,
+            customerEmail: sample.customerEmail,
+            total: sample.total,
+            date: sample.date
+        });
+    }
+
+    return enrichedOrders;
+}
+
+/**
+ * Original function - basic orders WITHOUT customer details
+ * Faster but limited data
+ */
 export async function getTinyOrders(startDate?: string, endDate?: string) {
     if (!TINY_TOKEN) {
         console.error("[Tiny API] ❌ ERRO: TINY_API_TOKEN não configurada!");
@@ -42,7 +169,7 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     console.log(`[Tiny API] ✓ Token configurado`);
     console.log(`[Tiny API] 📅 Buscando pedidos de ${startDate} até ${endDate}`);
 
-    let allOrders: TinyOrder[] = [];
+    let allOrders: TinyOrderBasic[] = [];
     let page = 1;
     let hasMore = true;
     const maxPages = 5; // 5 pages * 100 = 500 orders (~3-4 months, ~1.5s load time)
@@ -65,7 +192,7 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
         }
 
         try {
-            console.log(`[Tiny API] 🔍 Fetching page ${page}... URL: ${url}`);
+            console.log(`[Tiny API] 🔍 Fetching page ${page}...`);
             const res = await fetch(url, {
                 next: { revalidate: 0 },
                 cache: 'no-store'
@@ -78,19 +205,13 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
 
             const data = await res.json();
 
-            // Log response structure to debug
-            // console.log(`[Tiny API] Response keys:`, Object.keys(data));
-
             if (data.retorno?.status_processamento === 3 || !data.retorno?.pedidos) {
-                // Status 3 = No records found or end of list
-                // console.log(`[Tiny API] ℹ️ End of data at page ${page}`);
                 hasMore = false;
             } else {
                 const orders = data.retorno.pedidos;
                 allOrders = [...allOrders, ...orders];
                 console.log(`[Tiny API] ✅ Page ${page} received ${orders.length} orders. Total so far: ${allOrders.length}`);
 
-                // If page full (usually 100), maybe more pages
                 if (orders.length < 100) {
                     hasMore = false;
                 } else {
@@ -107,16 +228,9 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
 
     console.log(`[Tiny API] ✅ ${validOrders.length} pedidos válidos`);
 
-    if (validOrders.length > 0) {
-        const first = validOrders[0].pedido;
-        console.log(`[Tiny Debug] Sample:`, JSON.stringify(first, null, 2).substring(0, 300));
-    }
-
-    // Map and extract values - try multiple possible field names
+    // Map and extract values
     return validOrders.map((o: any) => {
         const pedido = o.pedido || o;
-
-        // Try all possible value fields
         const rawValue = pedido.valor_total || pedido.valor || pedido.total_pedido || pedido.total || "0";
         const total = parseCurrency(rawValue);
 

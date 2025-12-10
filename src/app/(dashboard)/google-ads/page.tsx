@@ -2,8 +2,8 @@ import { Header } from "@/components/layout/Header";
 import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// Enable ISR with 5 minute revalidation
+export const revalidate = 300;
 
 interface Props {
     searchParams: { start?: string; end?: string };

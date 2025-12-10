@@ -6,9 +6,9 @@ import { DollarSign, ShoppingCart, Users, Rocket } from "lucide-react";
 import { format, subDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-// Force dynamic rendering - NO CACHE
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// Enable ISR with 5 minute revalidation for better performance
+// Cache is also handled in actions.ts for API calls
+export const revalidate = 300; // 5 minutes
 
 // Helper Component for the Cards
 function KPI_Card({ label, value, prefix = "", suffix = "", trend, invertTrend = false, isCurrency = true, variant = "default" }: any) {

@@ -15,6 +15,9 @@ import {
     Settings,
     Menu,
     LogOut,
+    Users,
+    Globe,
+    Share2,
 } from "lucide-react";
 import { signout } from "@/app/login/actions";
 import { useState } from "react";
@@ -49,6 +52,21 @@ const sidebarItems = [
         title: "Curva ABC (Tiny)",
         href: "/products",
         icon: Package,
+    },
+    {
+        title: "RFM - Clientes",
+        href: "/rfm",
+        icon: Users,
+    },
+    {
+        title: "Público-alvo (GA4)",
+        href: "/publico-alvo",
+        icon: Globe,
+    },
+    {
+        title: "Origem/Mídia (GA4)",
+        href: "/origem-midia",
+        icon: Share2,
     },
 ];
 

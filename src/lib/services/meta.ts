@@ -21,6 +21,9 @@ export async function getMetaAdsInsights(startDate: string, endDate: string): Pr
     const fields = "spend,impressions,clicks,cpc,cpm,ctr,purchase_roas,actions";
     const time_range = JSON.stringify({ since: startDate, until: endDate });
 
+    console.log(`[Meta Ads] Requesting data for: ${startDate} to ${endDate}`);
+    console.log(`[Meta Ads] Time range param: ${time_range}`);
+
     // API Version v19.0
     const url = `https://graph.facebook.com/v19.0/${ACCOUNT_ID}/insights?access_token=${ACCESS_TOKEN}&level=account&fields=${fields}&time_range=${time_range}`;
 
@@ -37,7 +40,12 @@ export async function getMetaAdsInsights(startDate: string, endDate: string): Pr
         }
 
         const row = data.data?.[0];
-        if (!row) return { error: "No Data Rows Returned" };
+        if (!row) {
+            console.log('[Meta Ads] No data rows returned');
+            return { error: "No Data Rows Returned" };
+        }
+
+        console.log(`[Meta Ads] Raw spend from API: ${row.spend}`);
 
         // Extract ROAS from purchase_roas array if present
         let roas = 0;
@@ -46,7 +54,7 @@ export async function getMetaAdsInsights(startDate: string, endDate: string): Pr
             roas = purchaseRoasObj ? parseFloat(purchaseRoasObj.value) : 0;
         }
 
-        return {
+        const result = {
             spend: parseFloat(row.spend || "0"),
             impressions: parseInt(row.impressions || "0"),
             clicks: parseInt(row.clicks || "0"),
@@ -56,6 +64,9 @@ export async function getMetaAdsInsights(startDate: string, endDate: string): Pr
             purchase_roas: roas,
             actions: row.actions
         };
+
+        console.log(`[Meta Ads] Returning spend: R$ ${result.spend?.toFixed(2) || '0'}`)
+        return result;
 
     } catch (error) {
         console.error("Error fetching Meta Ads data:", error);

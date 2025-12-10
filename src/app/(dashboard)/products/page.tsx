@@ -2,7 +2,9 @@ import { Header } from "@/components/layout/Header";
 import { fetchProductsData } from "@/app/products-actions";
 import { Suspense } from "react";
 
-export const revalidate = 60; // Cache for 60 seconds
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 interface Props {
     searchParams: {
@@ -12,7 +14,7 @@ interface Props {
 }
 
 export default async function ProductsPage(props: Props) {
-    const searchParams = props.searchParams;
+    const searchParams = await props.searchParams;
     const startDate = searchParams.start || "30daysAgo";
     const endDate = searchParams.end || "today";
 
@@ -37,11 +39,11 @@ export default async function ProductsPage(props: Props) {
                         <table className="w-full text-sm text-left">
                             <thead className="bg-slate-950 text-slate-400 font-medium uppercase text-xs">
                                 <tr>
-                                    <th className="px-4 py-3">Código do Produto</th>
+                                    <th className="px-4 py-3">Código</th>
                                     <th className="px-4 py-3">Nome do Produto</th>
-                                    <th className="px-4 py-3 text-right">Quantidade Total</th>
+                                    <th className="px-4 py-3 text-right">Qtd Vendida</th>
                                     <th className="px-4 py-3 text-right">Receita Total</th>
-                                    <th className="px-4 py-3 text-right">% Δ</th>
+                                    <th className="px-4 py-3 text-right">% Receita</th>
                                     <th className="px-4 py-3 text-right">% Acumulado</th>
                                 </tr>
                             </thead>

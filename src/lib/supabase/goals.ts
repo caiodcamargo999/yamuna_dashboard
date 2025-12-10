@@ -6,6 +6,7 @@ export interface MonthlyGoal {
     year: number;
     revenue_goal: number;
     transactions_goal: number;
+    ad_budget_goal?: number;
     created_at: string;
     updated_at: string;
 }
@@ -21,7 +22,10 @@ export async function getMonthlyGoal(month: number, year: number): Promise<Month
         .single();
 
     if (error) {
-        console.error(`Error fetching goal for ${month}/${year}:`, error);
+        // Ignore "Row not found" error (code PGRST116) which is expected if no goal is set
+        if (error.code !== 'PGRST116') {
+            console.warn(`[Supabase] Warning fetching goal for ${month}/${year}:`, error.message || error);
+        }
         return null;
     }
 
@@ -44,7 +48,8 @@ export async function setMonthlyGoal(
     month: number,
     year: number,
     revenueGoal: number,
-    transactionsGoal: number
+    transactionsGoal: number,
+    adBudgetGoal: number = 0
 ): Promise<MonthlyGoal | null> {
     const supabase = await createClient();
 
@@ -55,12 +60,13 @@ export async function setMonthlyGoal(
             year,
             revenue_goal: revenueGoal,
             transactions_goal: transactionsGoal,
+            ad_budget_goal: adBudgetGoal,
         })
         .select()
         .single();
 
     if (error) {
-        console.error(`Error setting goal for ${month}/${year}:`, error);
+        console.warn(`[Supabase] Warning setting goal for ${month}/${year}:`, error.message || error);
         return null;
     }
 
@@ -78,7 +84,7 @@ export async function getAllGoals(): Promise<MonthlyGoal[]> {
         .limit(12);
 
     if (error) {
-        console.error('Error fetching all goals:', error);
+        console.warn('[Supabase] Warning fetching all goals:', error.message || error);
         return [];
     }
 

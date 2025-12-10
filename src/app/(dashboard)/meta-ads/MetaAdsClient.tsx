@@ -90,7 +90,11 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                         <div>
                             <h2 className="text-lg font-bold text-slate-800 dark:text-white">Top Criativos</h2>
-                            <p className="text-xs text-slate-500">{startDate} até {endDate}</p>
+                            <p className="text-xs text-slate-500">
+                                {startDate === "30daysAgo" ? "Últimos 30 dias" :
+                                    endDate === "today" && startDate !== "30daysAgo" ? `${startDate} até hoje` :
+                                        `${startDate} até ${endDate}`}
+                            </p>
                         </div>
 
                         {/* Advanced Filters */}

@@ -13,7 +13,7 @@ interface Props {
 }
 
 export default async function FunnelPage(props: Props) {
-    const searchParams = props.searchParams;
+    const searchParams = await props.searchParams;
     const startDate = searchParams.start || "30daysAgo";
     const endDate = searchParams.end || "today";
 
@@ -29,6 +29,7 @@ export default async function FunnelPage(props: Props) {
                     year={data.currentMonth.year}
                     currentRevenueGoal={data.currentMonth.goal?.revenue_goal || 0}
                     currentTransactionsGoal={data.currentMonth.goal?.transactions_goal || 0}
+                    currentAdBudgetGoal={data.currentMonth.goal?.ad_budget_goal || 0}
                 />
 
                 {/* Funnel Visualization */}

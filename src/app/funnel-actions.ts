@@ -5,7 +5,7 @@ import { getTinyOrders } from "@/lib/services/tiny";
 import { getMetaAdsInsights } from "@/lib/services/meta";
 import { getTopProductsByPeriod } from "@/lib/services/tiny-products";
 import { getCurrentMonthGoal, getPreviousMonthGoal, setMonthlyGoal as setGoalDB } from "@/lib/supabase/goals";
-import { format, subMonths, startOfMonth, endOfMonth, parseISO, subDays } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, parseISO, subDays, parse } from "date-fns";
 import { parseCurrency } from "@/lib/utils";
 
 export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today") {
@@ -66,53 +66,66 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
         getPreviousMonthGoal()
     ]);
 
-    // Helper to safely filter orders by date (Client-side safety net)
-    const filterOrdersByDate = (orders: any[], start: string, end: string) => {
-        if (!orders || !Array.isArray(orders)) return [];
-        const startDate = parseISO(start);
-        const endDate = parseISO(end);
-        // Set end date to end of day
-        endDate.setHours(23, 59, 59, 999);
-
-        return orders.filter(o => {
-            const d = parseISO(o.pedido.data_pedido); // data_pedido is YYYY-MM-DD
-            return d >= startDate && d <= endDate;
-        });
+    // Helper to safely extract date
+    const getDateFromOrder = (o: any) => {
+        if (o.date) return o.date;
+        if (o.data_pedido) return o.data_pedido;
+        if (o.pedido?.data_pedido) return o.pedido.data_pedido;
+        return null;
     };
 
-    // Re-filter Tiny Orders because API sometimes ignores date params if misused
-    const safeSelectedTiny = filterOrdersByDate(selectedPeriodTiny, startStr, endStr);
-    const currentMonthTinyFiltered = filterOrdersByDate(getAllTinyOrdersResults, currentMonthStart, currentMonthEnd);
-    // Actually, 'prevMonthTiny' was missing from Promise.all in my edit above, I need to restore logic properly.
-    // Let's retry the Promise.all structure carefully.
+    // Helper to safely extract total value
+    const getValueFromOrder = (o: any) => {
+        if (typeof o.total === 'number') return o.total;
+        if (o.valor_total) return o.valor_total;
+        if (o.pedido?.valor_total) return parseCurrency(o.pedido.valor_total);
+        if (typeof o.valor === 'number') return o.valor;
+        return 0;
+    };
+
+    // TRUST API: Tiny API already filters by date
+    const safeSelectedTiny = selectedPeriodTiny || [];
+    const currentMonthTinyFiltered = getAllTinyOrdersResults || [];
+
+    console.log(`[Funnel] ✅ Selected period: ${safeSelectedTiny.length} orders`);
+    console.log(`[Funnel] ✅ Current month: ${currentMonthTinyFiltered.length} orders`);
 
     // 5. Calculate selected period metrics
     const selectedSessions = selectedPeriodGA4?.sessions || 0;
     const selectedAddToCarts = selectedPeriodGA4?.addToCarts || 0;
     const selectedCheckouts = selectedPeriodGA4?.checkouts || 0;
     const selectedTransactions = safeSelectedTiny.length || 0;
-    const selectedRevenue = safeSelectedTiny.reduce((sum, order: any) => sum + (parseCurrency(order.pedido.valor_total) || 0), 0) || 0; // Use parseCurrency just in case
+    const selectedRevenue = safeSelectedTiny.reduce((sum, order: any) => sum + getValueFromOrder(order), 0) || 0;
 
-    console.log(`[Funnel Debug] Selected Period: ${startStr} to ${endStr}`);
-    console.log(`[Funnel Debug] Transactions: ${selectedTransactions}, Revenue: R$ ${selectedRevenue.toFixed(2)}`);
+    console.log(`[Funnel] Selected Period Metrics:`);
+    console.log(`  - Transactions: ${selectedTransactions}`);
+    console.log(`  - Revenue: R$ ${selectedRevenue.toFixed(2)}`);
+    console.log(`  - Sessions: ${selectedSessions}`);
 
     // 6. Calculate current month metrics
     const currentMonthSessions = currentMonthGA4?.sessions || 0;
-    const currentMonthRevenue = currentMonthTinyFiltered.reduce((sum, order: any) => sum + (parseCurrency(order.pedido.valor_total) || 0), 0) || 0;
+    const currentMonthRevenue = currentMonthTinyFiltered.reduce((sum, order: any) => sum + getValueFromOrder(order), 0) || 0;
     const currentMonthTransactions = currentMonthTinyFiltered.length || 0;
     const currentMonthInvestment = (currentMonthGA4?.investment || 0) + (currentMonthMeta?.spend || 0);
 
+    console.log(`[Funnel] Current Month Metrics:`);
+    console.log(`  - Transactions: ${currentMonthTransactions}`);
+    console.log(`  - Revenue: R$ ${currentMonthRevenue.toFixed(2)}`);
+    console.log(`  - Investment: R$ ${currentMonthInvestment.toFixed(2)}`);
+
     // 7. Calculate previous month metrics
-    // Fetch prev month orders separately or reuse filter? I need to fetch them.
-    // I missed fetching prevMonthTiny in the destructuring above.
-    // I will refetch prevMonthTiny inside the function flow for cleanliness or do cleaner Promise.all
-
     const prevMonthTiny = await getTinyOrders(prevMonthStart, prevMonthEnd);
-    const safePrevMonthTiny = filterOrdersByDate(prevMonthTiny, prevMonthStart, prevMonthEnd);
+    const safePrevMonthTiny = prevMonthTiny || [];
+    console.log(`[Funnel] ✅ Previous month: ${safePrevMonthTiny.length} orders`);
 
-    const prevMonthRevenue = safePrevMonthTiny.reduce((sum, order: any) => sum + (parseCurrency(order.pedido.valor_total) || 0), 0) || 0;
+    const prevMonthRevenue = safePrevMonthTiny.reduce((sum, order: any) => sum + getValueFromOrder(order), 0) || 0;
     const prevMonthTransactions = safePrevMonthTiny.length || 0;
-    const prevMonthInvestment = (prevMonthGA4?.investment || 0) + (prevMonthMeta?.spend || 0); // Add Meta
+    const prevMonthInvestment = (prevMonthGA4?.investment || 0) + (prevMonthMeta?.spend || 0);
+
+    console.log(`[Funnel] Previous Month Metrics:`);
+    console.log(`  - Transactions: ${prevMonthTransactions}`);
+    console.log(`  - Revenue: R$ ${prevMonthRevenue.toFixed(2)}`);
+    console.log(`  - Investment: R$ ${prevMonthInvestment.toFixed(2)}`);
 
     // 8. Calculate conversion rates
     const cartRate = selectedSessions > 0 ? (selectedAddToCarts / selectedSessions) * 100 : 0;
@@ -185,14 +198,24 @@ export async function saveMonthlyGoal(
     month: number,
     year: number,
     revenueGoal: number,
-    transactionsGoal: number
+    transactionsGoal: number,
+    adBudgetGoal: number = 0
 ) {
     "use server";
     try {
-        const result = await setGoalDB(month, year, revenueGoal, transactionsGoal);
+        console.log(`[Save Goal] Attempting to save: Month=${month}, Year=${year}, Revenue=${revenueGoal}, Transactions=${transactionsGoal}, AdBudget=${adBudgetGoal}`);
+        const result = await setGoalDB(month, year, revenueGoal, transactionsGoal, adBudgetGoal);
+
+        if (!result) {
+            console.error('[Save Goal] setGoalDB returned null - database write may have failed');
+            return { success: false, error: "Banco de dados retornou null. Verifique se a coluna 'ad_budget_goal' existe na tabela 'monthly_goals' no Supabase." };
+        }
+
+        console.log('[Save Goal] ✅ Successfully saved goal:', result);
         return { success: true, data: result };
-    } catch (error) {
-        console.error("Error saving monthly goal:", error);
-        return { success: false, error: "Failed to save goal" };
+    } catch (error: any) {
+        console.error("[Save Goal] ❌ Error saving monthly goal:", error);
+        const errorMessage = error?.message || error?.toString() || 'Erro desconhecido';
+        return { success: false, error: `Falha ao salvar: ${errorMessage}` };
     }
 }

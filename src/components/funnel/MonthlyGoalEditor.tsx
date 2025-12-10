@@ -9,17 +9,20 @@ interface MonthlyGoalEditorProps {
     year: number;
     currentRevenueGoal?: number;
     currentTransactionsGoal?: number;
+    currentAdBudgetGoal?: number;
 }
 
 export function MonthlyGoalEditor({
     month,
     year,
     currentRevenueGoal = 0,
-    currentTransactionsGoal = 0
+    currentTransactionsGoal = 0,
+    currentAdBudgetGoal = 0
 }: MonthlyGoalEditorProps) {
     const [isEditing, setIsEditing] = useState(false);
     const [revenueGoal, setRevenueGoal] = useState(currentRevenueGoal);
     const [transactionsGoal, setTransactionsGoal] = useState(currentTransactionsGoal);
+    const [adBudgetGoal, setAdBudgetGoal] = useState(currentAdBudgetGoal);
     const [saving, setSaving] = useState(false);
 
     const monthNames = [
@@ -30,7 +33,7 @@ export function MonthlyGoalEditor({
     const handleSave = async () => {
         setSaving(true);
         try {
-            const result = await saveMonthlyGoal(month, year, revenueGoal, transactionsGoal);
+            const result = await saveMonthlyGoal(month, year, revenueGoal, transactionsGoal, adBudgetGoal);
 
             if (result.success) {
                 setIsEditing(false);
@@ -77,6 +80,13 @@ export function MonthlyGoalEditor({
                             {transactionsGoal > 0 ? transactionsGoal.toLocaleString('pt-BR') : "Não definida"}
                         </p>
                     </div>
+
+                    <div className="bg-slate-800 rounded-lg p-4 col-span-2">
+                        <p className="text-slate-400 text-sm mb-1">Meta de Investimento (Ads)</p>
+                        <p className="text-white text-2xl font-bold">
+                            {adBudgetGoal > 0 ? `R$ ${adBudgetGoal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "Não definida"}
+                        </p>
+                    </div>
                 </div>
             </div>
         );
@@ -113,6 +123,20 @@ export function MonthlyGoalEditor({
                         onChange={(e) => setTransactionsGoal(parseInt(e.target.value) || 0)}
                         className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-600"
                         placeholder="Ex: 1000"
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-slate-300 text-sm font-medium mb-2">
+                        Orçamento de Anúncios (R$)
+                    </label>
+                    <input
+                        type="number"
+                        value={adBudgetGoal}
+                        onChange={(e) => setAdBudgetGoal(parseFloat(e.target.value) || 0)}
+                        className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                        placeholder="Ex: 50000"
+                        step="0.01"
                     />
                 </div>
 

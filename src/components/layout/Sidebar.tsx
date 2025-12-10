@@ -132,7 +132,7 @@ export function Sidebar() {
                                 Powered by
                             </p>
                             <p className="text-xs text-slate-500 font-bold mt-0.5">
-                                MILLENNIALS
+                                MILENNIALS
                             </p>
                         </div>
                     </div>

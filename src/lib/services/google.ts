@@ -6,8 +6,8 @@ const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
 
 export async function getGoogleAnalyticsData(startDate: string, endDate: string) {
-    if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN || !GA4_PROPERTY_ID) {
-        return { error: "Missing Credentials" };
+    if (!GA4_PROPERTY_ID || !CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) {
+        return null;
     }
 
     const auth = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
@@ -16,22 +16,32 @@ export async function getGoogleAnalyticsData(startDate: string, endDate: string)
     const analyticsData = google.analyticsdata({ version: "v1beta", auth });
 
     try {
+        // FIX: Google Analytics fails if endDate is in the future (Currency Exchange error)
+        // So we clamp endDate to TODAY.
+        const todayStr = new Date().toISOString().split('T')[0];
+        const safeEndDate = endDate > todayStr ? todayStr : endDate;
+
+        // Ensure startDate is not after safeEndDate
+        const safeStartDate = startDate > safeEndDate ? safeEndDate : startDate;
+
         // Request 1: Sessions (Session Scope)
         // Request 2: Events (Revenue, Transactions - Standard Metrics)
         // Request 3: Ad Cost (Ad Scope)
         // Request 4: Event Counts (View Item, Add to Cart, Begin Checkout)
         const [sessionsReport, eventsReport, adsReport, eventCountsReport] = await Promise.all([
+            // Request 1: Sessions
             analyticsData.properties.runReport({
                 property: `properties/${GA4_PROPERTY_ID}`,
                 requestBody: {
-                    dateRanges: [{ startDate, endDate }],
-                    metrics: [{ name: "sessions" }],
+                    dateRanges: [{ startDate: safeStartDate, endDate: safeEndDate }],
+                    metrics: [{ name: 'sessions' }],
                 },
             }),
+            // Request 2: Events (Revenue, Transactions, Users)
             analyticsData.properties.runReport({
                 property: `properties/${GA4_PROPERTY_ID}`,
                 requestBody: {
-                    dateRanges: [{ startDate, endDate }],
+                    dateRanges: [{ startDate: safeStartDate, endDate: safeEndDate }],
                     metrics: [
                         { name: "totalRevenue" },
                         { name: "transactions" },
@@ -40,18 +50,20 @@ export async function getGoogleAnalyticsData(startDate: string, endDate: string)
                     ],
                 },
             }),
+            // Request 3: Ad Cost
             analyticsData.properties.runReport({
                 property: `properties/${GA4_PROPERTY_ID}`,
                 requestBody: {
-                    dateRanges: [{ startDate, endDate }],
-                    dimensions: [{ name: "campaignName" }], // Required for ad cost
+                    dateRanges: [{ startDate: safeStartDate, endDate: safeEndDate }],
+                    dimensions: [{ name: "campaignName" }],
                     metrics: [{ name: "advertiserAdCost" }],
                 },
             }),
+            // Request 4: Funnel Events
             analyticsData.properties.runReport({
                 property: `properties/${GA4_PROPERTY_ID}`,
                 requestBody: {
-                    dateRanges: [{ startDate, endDate }],
+                    dateRanges: [{ startDate: safeStartDate, endDate: safeEndDate }],
                     dimensions: [{ name: "eventName" }],
                     metrics: [{ name: "eventCount" }],
                     dimensionFilter: {
@@ -64,7 +76,7 @@ export async function getGoogleAnalyticsData(startDate: string, endDate: string)
                         }
                     }
                 },
-            }),
+            })
         ]);
 
         const sessionsRow = sessionsReport.data.rows?.[0];

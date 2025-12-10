@@ -3,7 +3,7 @@
 import { getGoogleAnalyticsData } from "@/lib/services/google";
 import { getTinyOrders, getTinyProducts } from "@/lib/services/tiny";
 import { getMetaAdsInsights } from "@/lib/services/meta"; // Import Meta Service
-import { differenceInDays, subDays, parseISO, format, subMonths } from "date-fns";
+import { differenceInDays, subDays, parseISO, format, subMonths, startOfMonth, endOfMonth, parse } from "date-fns";
 
 import { getWakeOrders } from "@/lib/services/wake";
 import { parseCurrency } from "@/lib/utils";
@@ -28,13 +28,95 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
 
     console.log(`[fetchDashboardData] 🎯 Parsed dates: ${startStr} to ${endStr}`);
 
+    console.log(`\n[Dashboard] 📅 FILTRO ATIVO:`);
+    console.log(`  - Start (input): ${startDate}`);
+    console.log(`  - End (input): ${endDate}`);
+    console.log(`  - Start (converted): ${startStr}`);
+    console.log(`  - End (converted): ${endStr}`);
+
+    // Helper: Extract date from order (must be defined before use)
+    const getDateFromOrder = (o: any): string | null => {
+        if (o.date) return o.date;
+        if (o.data_pedido) return o.data_pedido;
+        if (o.pedido?.data_pedido) return o.pedido.data_pedido;
+        return null;
+    };
+
+    // Robust date filter (handles dd/MM/yyyy from Tiny and ISO)
+    const filterOrdersByDateRange = (orders: any[], startStr: string, endStr: string): any[] => {
+        if (!orders || !Array.isArray(orders)) return [];
+
+        console.log(`[Filter Debug] Filtering ${orders.length} orders between ${startStr} and ${endStr}`);
+
+        const startDateFilter = parseISO(startStr);
+        startDateFilter.setHours(0, 0, 0, 0);
+
+        const endDateFilter = parseISO(endStr);
+        endDateFilter.setHours(23, 59, 59, 999);
+
+        const filtered = orders.filter((o, idx) => {
+            const dateStr = getDateFromOrder(o);
+            if (!dateStr || typeof dateStr !== 'string') {
+                if (idx < 2) console.log(`[Filter Debug] Order ${idx}: No date string, including anyway`);
+                return true; // INCLUDE if no date (safer than exclude)
+            }
+
+            let orderDate: Date | null = null;
+
+            // Try dd/MM/yyyy format first (Tiny standard)
+            if (dateStr.includes('/')) {
+                try {
+                    const parts = dateStr.split('/');
+                    if (parts.length === 3) {
+                        const day = parseInt(parts[0], 10);
+                        const month = parseInt(parts[1], 10) - 1; // 0-indexed
+                        const year = parseInt(parts[2], 10);
+                        orderDate = new Date(year, month, day);
+                    }
+                } catch (e) {
+                    if (idx < 2) console.error(`[Filter Debug] Order ${idx}: Failed to parse ${dateStr}:`, e);
+                }
+            }
+            // Try ISO format
+            else if (dateStr.includes('-')) {
+                try {
+                    orderDate = parseISO(dateStr);
+                } catch (e) {
+                    if (idx < 2) console.error(`[Filter Debug] Order ${idx}: Failed to parse ISO ${dateStr}:`, e);
+                }
+            }
+
+            if (!orderDate || isNaN(orderDate.getTime())) {
+                if (idx < 2) console.log(`[Filter Debug] Order ${idx}: Invalid date ${dateStr}, including anyway`);
+                return true; // INCLUDE if unparseable (safer)
+            }
+
+            const inRange = orderDate >= startDateFilter && orderDate <= endDateFilter;
+            if (idx < 2) console.log(`[Filter Debug] Order ${idx}: ${dateStr} -> ${orderDate.toISOString()} -> ${inRange ? 'KEEP' : 'REJECT'}`);
+            return inRange;
+        });
+
+        console.log(`[Filter Debug] Result: ${filtered.length}/${orders.length} orders kept`);
+        return filtered;
+    };
+
     // 2. Fetch Data (Parallel)
-    const [googleData, tinyOrders, metaData, wakeOrders] = await Promise.all([
+    const [googleData, tinyOrdersRaw, metaData, wakeOrders] = await Promise.all([
         getGoogleAnalyticsData(startStr, endStr),
         getTinyOrders(startStr, endStr),
         getMetaAdsInsights(startStr, endStr),
         getWakeOrders(startStr, endStr)
     ]);
+
+    // TRUST API: The Tiny API already filters by date, no need for manual filter
+    const tinyOrders = tinyOrdersRaw || [];
+    console.log(`[Dashboard] Tiny API returned ${tinyOrders.length} orders for period ${startStr} to ${endStr}`);
+
+    if (tinyOrders.length > 0) {
+        console.log(`[Dashboard] 🔍 VERIFICAÇÃO DE PERÍODO:`);
+        console.log(`  - Primeiro pedido: ${tinyOrders[0].date || tinyOrders[0].data_pedido || 'sem data'}`);
+        console.log(`  - Último pedido: ${tinyOrders[tinyOrders.length - 1].date || tinyOrders[tinyOrders.length - 1].data_pedido || 'sem data'}`);
+    }
 
     // 3. Calculate Core Metrics
     // Revenue (Tiny is Source of Truth for Sales)
@@ -46,149 +128,116 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     const metaAdsCost = metaData?.spend || 0;
     const totalInvestment = googleAdsCost + metaAdsCost;
 
-    console.log(`\n[Dashboard] 📊 RESUMO DE DADOS:`);
+    console.log(`\n[Dashboard] 📊 RESUMO DE DADOS (PERÍODO FILTRADO):`);
     console.log(`  📅 Período: ${startStr} a ${endStr}`);
     console.log(`  🛒 Pedidos Tiny: ${totalOrders}`);
+
+    // Debug: Show date range of orders actually returned
+    if (tinyOrders.length > 0) {
+        const firstOrder = tinyOrders[0];
+        const lastOrder = tinyOrders[tinyOrders.length - 1];
+        console.log(`  📦 Primeiro pedido: ${firstOrder.date}`);
+        console.log(`  📦 Último pedido: ${lastOrder.date}`);
+    }
+
     console.log(`  💰 Receita Total: R$ ${totalRevenue.toFixed(2)}`);
     console.log(`  📈 Investimento: R$ ${totalInvestment.toFixed(2)}`);
 
 
-    // 4. "New Revenue" & "New Customers" Logic (Wake is Source of Truth for Customer Type)
-    // Wake usually has a 'clienteNovo' boolean or we can infer it.
-    // Assuming Wake Order structure has something to identify new user or we just count unique emails?
-    // Actually, Wake API V2/B2C usually has `novoCliente` (boolean) or we look at `pedidosAnteriores`.
-    // Let's inspect ONE Wake order structure if possible, but for now we'll assume a standard B2C logic:
-    // We will consider orders where `novoCliente` is true OR just filter strictly if the field exists.
-    // If field is missing, we might need to count purely based on "First Order" logic if we had full history.
-    // FALLBACK: Since we don't know the exact Wake field name without docs/inspect, 
-    // we'll filter ANY order that looks like a "First Buy".
-    // A common field in Fbits/Wake is `clienteNovo`.
+    // 4. Calculate New Revenue and Retention USING ONLY SELECTED PERIOD GA4 DATA
+    // Use GA4's new users vs returning users to estimate revenue split
+    const totalPurchasers = googleData?.purchasers || 0;
+    const newUsers = googleData?.newUsers || 0;
 
-    // Mapping Wake Orders to find "New Revenue" portion
-    // We can't easily map 1:1 Wake Order to Tiny Order without ID matching.
-    // Tiny is "Fiscal", Wake is "E-commerce".
-    // STRATEGY: 
-    // 1. Calculate % of Revenue that is New from Wake.
-    // 2. Apply that % to Tiny Total Revenue (to match Fiscal reality).
+    // Estimate: % of new users out of all purchasers
+    const newCustomerRatio = totalPurchasers > 0 ? Math.min(newUsers / totalPurchasers, 1.0) : 0.25;
 
-    let wakeTotalRevenue = 0;
-    let wakeNewRevenue = 0;
-    let wakeNewCustomersCount = 0;
-
-
-    if (wakeOrders && Array.isArray(wakeOrders)) {
-        console.log(`[Dashboard] 🌊 Processando ${wakeOrders.length} pedidos Wake...`);
-
-        wakeOrders.forEach((o: any) => {
-            const val = parseCurrency(o.valorTotal || o.total);
-            wakeTotalRevenue += val;
-
-            // Check for "New Client" flag. 
-            // Common keys: clienteNovo, primeiraCompra, or in 'cliente' object
-            const isNew = o.clienteNovo === true || o.primeiraCompra === true; // Hypothesis
-
-            if (isNew) {
-                wakeNewRevenue += val;
-                wakeNewCustomersCount++;
-            }
-        });
-
-        console.log(`  💵 Wake - Receita Total: R$ ${wakeTotalRevenue.toFixed(2)}`);
-        console.log(`  ✨ Wake - Receita Novos: R$ ${wakeNewRevenue.toFixed(2)}`);
-        console.log(`  👥 Wake - Clientes Novos: ${wakeNewCustomersCount}`);
-    } else {
-        console.warn(`[Dashboard] ⚠️  Wake retornou dados inválidos ou vazios`);
-    }
-
-    // derived percentages from Wake
-    // derived percentages from Wake or fallback to GA4
-    let newRevenueShare = 0.25; // Default fallback
-
-    if (wakeTotalRevenue > 0) {
-        newRevenueShare = wakeNewRevenue / wakeTotalRevenue;
-    } else if (googleData && googleData.purchasers && googleData.purchasers > 0) {
-        // Fallback: Use GA4 New Users ratio
-        const newUserCount = googleData.newUsers || 0;
-        const ratio = newUserCount / googleData.purchasers;
-        newRevenueShare = Math.min(Math.max(ratio, 0.1), 0.9); // Clamp between 10% and 90%
-        console.log(`[Dashboard] ℹ️ Usando GA4 Ratio para novos clientes: ${(newRevenueShare * 100).toFixed(1)}%`);
-    }
-
-    // Apply to Tiny numbers for consistency
-    const newRevenue = totalRevenue * newRevenueShare;
+    const newRevenue = totalRevenue * newCustomerRatio;
     const retentionRevenue = totalRevenue - newRevenue;
+    const newCustomersCount = Math.round(totalPurchasers * newCustomerRatio);
 
-    // Estimate new customers count if Wake doesn't provide
-    const estimatedNewCustomers = wakeNewCustomersCount > 0
-        ? wakeNewCustomersCount
-        : Math.round(totalOrders * newRevenueShare);
-
-    const newCustomersCount = estimatedNewCustomers;
-
-    console.log(`[Dashboard] 📊 Cálculos finais:`);
-    console.log(`  - New Revenue Share: ${(newRevenueShare * 100).toFixed(1)}%`);
+    console.log(`[Dashboard] 📊 Receita Nova e Retenção (PERÍODO ${startStr} a ${endStr}):`);
+    console.log(`  - Total Purchasers (GA4): ${totalPurchasers}`);
+    console.log(`  - New Users (GA4): ${newUsers}`);
+    console.log(`  - Ratio Novos Clientes: ${(newCustomerRatio * 100).toFixed(1)}%`);
     console.log(`  - Receita Nova: R$ ${newRevenue.toFixed(2)}`);
-    console.log(`  - Retenção: R$ ${retentionRevenue.toFixed(2)}`);
-    console.log(`  - Clientes Novos (estimado): ${newCustomersCount}`);
+    console.log(`  - Receita Retenção: R$ ${retentionRevenue.toFixed(2)}`);
+    console.log(`  - Clientes Novos: ${newCustomersCount}`);
 
-    // 6. Derived KPIs
+    // 5. Derived KPIs
     const ticketAvg = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     const ticketAvgNew = newCustomersCount > 0 ? newRevenue / newCustomersCount : 0;
     const cac = newCustomersCount > 0 ? totalInvestment / newCustomersCount : 0;
     const costPercentage = totalRevenue > 0 ? (totalInvestment / totalRevenue) * 100 : 0;
 
-    // 7. Last 12 Months Data (For LTV, ROI 12M) - ALWAYS last 365 days from TODAY
+    // 7. Last 12 Months Data (FIXO) - For Faturamento 12M, LTV 12M, ROI 12M
     const today = new Date();
-    const start12m = subMonths(today, 12);
+    const start12m = new Date(today);
+    start12m.setDate(start12m.getDate() - 365);
     const start12mStr = format(start12m, "yyyy-MM-dd");
     const end12mStr = format(today, "yyyy-MM-dd");
 
-    console.log(`[Dashboard] 📅 Buscando dados 12 meses: ${start12mStr} a ${end12mStr}`);
+    console.log(`[Dashboard] 📅 Buscando dados 12 meses FIXOS: ${start12mStr} a ${end12mStr}`);
 
-    // We only need Tiny/Meta/Google for 12m macro data
-    const [tiny12m, google12m, meta12m] = await Promise.all([
+    const [tinyOrders12mRaw, google12m, meta12m] = await Promise.all([
         getTinyOrders(start12mStr, end12mStr),
         getGoogleAnalyticsData(start12mStr, end12mStr),
         getMetaAdsInsights(start12mStr, end12mStr)
     ]);
 
+    const tiny12m = tinyOrders12mRaw || [];
     const revenue12m = tiny12m.reduce((acc, o) => acc + o.total, 0);
     const cost12m = (google12m?.investment || 0) + (meta12m?.spend || 0);
     const roi12m = cost12m > 0 ? ((revenue12m - cost12m) / cost12m) * 100 : 0;
-
-    // LTV usando dados REAIS do GA4
-    const uniqueCustomers12m = google12m?.purchasers || 0; // Compradores únicos do GA4
+    const uniqueCustomers12m = google12m?.purchasers || 0;
     const ltv12m = uniqueCustomers12m > 0 ? revenue12m / uniqueCustomers12m : 0;
 
-    console.log(`[Dashboard] 💰 12 Meses:`);
-    console.log(`  - Revenue: R$ ${revenue12m.toFixed(2)}`);
-    console.log(`  - Custo: R$ ${cost12m.toFixed(2)}`);
-    console.log(`  - ROI: ${roi12m.toFixed(2)}%`);
-    console.log(`  - Pedidos: ${tiny12m.length}`);
-    console.log(`  - Clientes únicos (GA4): ${uniqueCustomers12m}`);
+    console.log(`[Dashboard] 💰 12 Meses FIXOS (últimos 365 dias):`);
+    console.log(`  - Faturamento: R$ ${revenue12m.toFixed(2)}`);
     console.log(`  - LTV: R$ ${ltv12m.toFixed(2)}`);
+    console.log(`  - ROI: ${roi12m.toFixed(2)}%`);
 
-    // 8. Previous Month Data (for comparison)
-    const previousMonthStart = subMonths(new Date(), 1);
-    const previousMonthEnd = new Date(previousMonthStart.getFullYear(), previousMonthStart.getMonth() + 1, 0); // Last day of previous month
-    const prevStartStr = format(previousMonthStart, "yyyy-MM-01"); // First day of previous month
-    const prevEndStr = format(previousMonthEnd, "yyyy-MM-dd"); // Last day of previous month
+    // 8. Acquired Customers DINÂMICO (período selecionado)
+    const acquiredCustomers = googleData?.purchasers || 0;
+    console.log(`[Dashboard] 👥 Clientes Adquiridos no período selecionado: ${acquiredCustomers}`);
 
-    console.log(`[Dashboard] 📅 Buscando mês anterior: ${prevStartStr} a ${prevEndStr}`);
+    // 8. Last Month Data (FIXED: Always full previous calendar month)
+    const lastMonthDate = subMonths(new Date(), 1);
+    const startLastMonth = startOfMonth(lastMonthDate);
+    const endLastMonth = endOfMonth(lastMonthDate);
 
-    const [tinyPrev, googlePrev, metaPrev] = await Promise.all([
-        getTinyOrders(prevStartStr, prevEndStr),
-        getGoogleAnalyticsData(prevStartStr, prevEndStr),
-        getMetaAdsInsights(prevStartStr, prevEndStr)
+    const startLastMonthStr = format(startLastMonth, "yyyy-MM-dd");
+    const endLastMonthStr = format(endLastMonth, "yyyy-MM-dd");
+
+    // Format for display (e.g., "01/11 - 30/11")
+    const periodLabel = `${format(startLastMonth, "dd/MM")} - ${format(endLastMonth, "dd/MM")}`;
+
+    console.log(`[Dashboard] 📅 Mês Anterior (FIXO): ${startLastMonthStr} a ${endLastMonthStr}`);
+
+    const [tinyLastMonthRaw, googleLastMonth, metaLastMonth] = await Promise.all([
+        getTinyOrders(startLastMonthStr, endLastMonthStr),
+        getGoogleAnalyticsData(startLastMonthStr, endLastMonthStr),
+        getMetaAdsInsights(startLastMonthStr, endLastMonthStr)
     ]);
 
-    const prevRevenue = tinyPrev.reduce((acc, o) => acc + o.total, 0);
-    const prevInvestment = (googlePrev?.investment || 0) + (metaPrev?.spend || 0);
+    // TRUST API
+    const tinyLastMonth = tinyLastMonthRaw || [];
+    console.log(`[Dashboard] Tiny API returned ${tinyLastMonth.length} orders for Last Month`);
 
-    console.log(`[Dashboard] 📈 Mês Anterior:`)
-        ;
-    console.log(`  - Receita: R$ ${prevRevenue.toFixed(2)}`);
-    console.log(`  - Investimento: R$ ${prevInvestment.toFixed(2)}`);
+    if (tinyLastMonth.length > 0) {
+        console.log(`[Dashboard] Sample last month order:`, JSON.stringify(tinyLastMonth[0]).substring(0, 200));
+    }
+
+    const revenueLastMonth = tinyLastMonth.reduce((acc, o) => {
+        const total = o.total || 0;
+        return acc + total;
+    }, 0);
+    const investmentLastMonth = (googleLastMonth?.investment || 0) + (metaLastMonth?.spend || 0);
+
+    console.log(`[Dashboard] 📈 Mês Anterior (${periodLabel}):`);
+    console.log(`  - Pedidos: ${tinyLastMonth.length}`);
+    console.log(`  - Receita: R$ ${revenueLastMonth.toFixed(2)}`);
+    console.log(`  - Investimento: R$ ${investmentLastMonth.toFixed(2)}`);
 
     return {
         kpis: {
@@ -196,13 +245,13 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
             costPercentage,
             ticketAvg,
             ticketAvgNew,
-            retentionRevenue,
-            newRevenue,
-            acquiredCustomers: newCustomersCount,
+            retentionRevenue, // DINÂMICO
+            newRevenue, // DINÂMICO
+            acquiredCustomers: acquiredCustomers, // DINÂMICO (período selecionado)
             cac,
-            revenue12m,
-            ltv12m,
-            roi12m
+            revenue12m: revenue12m, // FIXO (365 dias)
+            ltv12m: ltv12m, // FIXO (365 dias)
+            roi12m: roi12m // FIXO (365 dias)
         },
         revenue: totalRevenue,
         sessions: googleData?.sessions || 0,
@@ -216,12 +265,11 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
         tinySource: tinyOrders.length > 0 ? 'Tiny (Real)' : 'Sem Dados',
         midia_source: 'Google Ads + Meta Ads',
         dateRange: { start: startDate, end: endDate },
-
-        previous: {
-            revenue: prevRevenue,
-            investment: prevInvestment,
-            range: `${format(previousMonthStart, 'dd/MM')} - ${format(previousMonthEnd, 'dd/MM')}`
-        },
+        roi12Months: roi12m, // FIXO (365 dias)
+        // Last Month
+        revenueLastMonth: revenueLastMonth,
+        investmentLastMonth: investmentLastMonth,
+        lastMonthLabel: periodLabel,
 
         source: 'Tiny + GA4 + Meta + Wake',
     };

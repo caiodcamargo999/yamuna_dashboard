@@ -3,6 +3,8 @@ import { ArrowUp, ArrowDown, DollarSign, Users, RefreshCw, ShoppingCart } from "
 import { fetchDashboardData } from "@/app/actions";
 import { Suspense } from "react";
 
+export const dynamic = 'force-dynamic';
+
 interface Props {
     searchParams: Promise<{ start?: string; end?: string }>;
 }
@@ -12,7 +14,14 @@ export default async function FinancePage(props: Props) {
     const startDate = searchParams.start || "30daysAgo";
     const endDate = searchParams.end || "today";
 
+    console.log(`[Finance Page] 🔍 Filtro recebido: start=${startDate}, end=${endDate}`);
+
     const data = await fetchDashboardData(startDate, endDate);
+
+    console.log(`[Finance Page] 📊 Dados retornados:`);
+    console.log(`  - Revenue: R$ ${data.revenue}`);
+    console.log(`  - Transactions: ${data.transactions}`);
+    console.log(`  - Investment: R$ ${data.investment}`);
 
     // Calculated KPIs
     const ticketMedio = data.transactions > 0 ? data.revenue / data.transactions : 0;

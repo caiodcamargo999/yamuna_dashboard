@@ -57,40 +57,33 @@ export function CreativeModal({ isOpen, onClose, creative }: CreativeModalProps)
 
                 {/* Content */}
                 <div className="p-6">
-                    {creative.type === 'video' ? (
-                        <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
-                            {creative.videoUrl ? (
-                                <video
-                                    controls
-                                    autoPlay
-                                    muted
-                                    playsInline
-                                    loop
-                                    className="w-full h-full"
-                                    src={creative.videoUrl}
-                                    onError={(e) => {
-                                        console.error("Video failed to load:", creative.videoUrl);
-                                    }}
-                                >
-                                    Seu navegador não suporta vídeo.
-                                </video>
-                            ) : creative.embedHtml ? (
-                                <div
-                                    className="w-full h-full flex items-center justify-center bg-black [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0"
-                                    dangerouslySetInnerHTML={{
-                                        __html: creative.embedHtml.replace('<iframe', '<iframe allow="autoplay; encrypted-media" allowfullscreen')
-                                    }}
-                                />
-                            ) : creative.imageUrl ? (
-                                <img
-                                    src={creative.imageUrl}
-                                    alt={creative.name}
-                                    className="w-full h-full object-contain"
-                                    referrerPolicy="no-referrer"
-                                />
-                            ) : (
-                                <div className="text-slate-500">Vídeo indisponível (Sem URL ou Embed)</div>
-                            )}
+                    {creative.type === "video" ? (
+                        <div className="relative w-full aspect-video bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center">
+                            {/* Facebook videos cannot be embedded due to API restrictions */}
+                            <div className="text-center p-8">
+                                <div className="mb-4">
+                                    {creative.imageUrl && (
+                                        <img
+                                            src={creative.imageUrl}
+                                            alt={creative.name}
+                                            className="w-full h-auto rounded opacity-50"
+                                            referrerPolicy="no-referrer"
+                                        />
+                                    )}
+                                </div>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm">
+                                    <svg className="w-16 h-16 text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <p className="text-slate-400 text-sm max-w-md">
+                                        Vídeos do Facebook não podem ser reproduzidos aqui por restrições da API.
+                                    </p>
+                                    <p className="text-slate-500 text-xs mt-2">
+                                        Visualize o anúncio diretamente no Meta Ads Manager
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     ) : creative.imageUrl ? (
                         <div className="relative w-full">

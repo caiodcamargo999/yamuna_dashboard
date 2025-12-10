@@ -54,9 +54,8 @@ export function Header({ title }: { title: string }) {
         params.set("start", startDate);
         params.set("end", endDate);
 
-        // Push URL with params - this is what makes it work!
-        router.push(`${pathname}?${params.toString()}`);
-        router.refresh(); // Refresh server text
+        // HARD NAVIGATION to force re-fetch (bypasses Next.js cache)
+        window.location.href = `${pathname}?${params.toString()}`;
 
         // Simple feedback since we don't have a toast lib yet
         // In a real app we'd use sonner/toast

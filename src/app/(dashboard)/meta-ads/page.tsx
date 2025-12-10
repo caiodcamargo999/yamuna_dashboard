@@ -5,7 +5,9 @@ import { Suspense } from "react";
 import { getMetaTopCreatives } from "@/lib/services/meta";
 import { MetaAdsClient } from "./MetaAdsClient";
 
-export const revalidate = 60; // Cache for 60 seconds
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 interface Props {
     searchParams: {
@@ -14,10 +16,10 @@ interface Props {
     };
 }
 
-export default async function MetaAdsPage({ searchParams }: Props) {
-    const params = searchParams; // searchParams is no longer a Promise
-    const startDate = params.start || "30daysAgo";
-    const endDate = params.end || "today";
+export default async function MetaAdsPage(props: Props) {
+    const searchParams = await props.searchParams;
+    const startDate = searchParams.start || "30daysAgo";
+    const endDate = searchParams.end || "today";
 
     const formatMetaDate = (str: string) => {
         const d = new Date();

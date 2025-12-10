@@ -45,13 +45,24 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     let allOrders: TinyOrder[] = [];
     let page = 1;
     let hasMore = true;
-    const maxPages = 20; // Balanced limit: 20 pages (2000 orders) for speed vs data completeness
+    const maxPages = 5; // 5 pages * 100 = 500 orders (~3-4 months, ~1.5s load time)
 
     while (hasMore && page <= maxPages) {
         let url = `https://api.tiny.com.br/api2/pedidos.pesquisa.php?token=${TINY_TOKEN}&formato=json&pagina=${page}`;
 
-        if (startDate) url += `&data_inicial=${formatDate(startDate)}`;
-        if (endDate) url += `&data_final=${formatDate(endDate)}`;
+        // Convert yyyy-MM-dd to dd/MM/yyyy format that Tiny expects
+        if (startDate) {
+            const [y, m, d] = startDate.split('-');
+            const tinyFormat = `${d}/${m}/${y}`;
+            url += `&dataInicio=${tinyFormat}&data_inicial=${tinyFormat}`;
+            console.log(`[Tiny API] 📅 Data Início=${tinyFormat}`);
+        }
+        if (endDate) {
+            const [y, m, d] = endDate.split('-');
+            const tinyFormat = `${d}/${m}/${y}`;
+            url += `&dataFim=${tinyFormat}&data_final=${tinyFormat}`;
+            console.log(`[Tiny API] 📅 Data Fim=${tinyFormat}`);
+        }
 
         try {
             console.log(`[Tiny API] 🔍 Fetching page ${page}... URL: ${url}`);

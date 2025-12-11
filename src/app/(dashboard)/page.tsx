@@ -7,8 +7,9 @@ import { format, subDays, parseISO } from "date-fns";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
-// Enable IOS with 5 minute revalidation for better performance
-export const revalidate = 300; // 5 minutes
+// Force dynamic rendering to respect date filters
+export const dynamic = 'force-dynamic';
+
 
 // Helper Component for the Premium Glass Cards
 function KPIGlassCard({

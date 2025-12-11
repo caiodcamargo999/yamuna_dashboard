@@ -221,7 +221,7 @@ async function fetch12MonthMetrics() {
             getMetaAdsInsights(start12m, end12m)
         ]);
 
-        console.log(`[12M Metrics] 📦 Raw orders: Tiny=${tinyOrders.length} (from ${chunks.length} chunks), Wake=${wakeOrders?.length || 0}`);
+        console.log(`[12M Metrics] 📦 Raw orders: Tiny=${tinyOrders.length} (from ${chunkDates.length} chunks), Wake=${wakeOrders?.length || 0}`);
 
         const allOrders = mergeOrders(tinyOrders || [], wakeOrders || []);
         const revenue = allOrders.reduce((acc, o) => acc + (o.total || 0), 0);

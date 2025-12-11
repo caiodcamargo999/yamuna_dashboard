@@ -1,8 +1,9 @@
 import { Header } from "@/components/layout/Header";
 import { fetchRFMData } from "@/app/rfm-actions";
 
-// Enable ISR with 15 minute revalidation (RFM data is stable)
-export const revalidate = 900;
+// Force dynamic rendering because this page makes API calls
+export const dynamic = 'force-dynamic';
+
 
 export default async function RFMPage() {
     const rfmData = await fetchRFMData(12);

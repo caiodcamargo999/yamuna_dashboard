@@ -7,7 +7,9 @@ import { TopProducts } from "@/components/funnel/TopProducts";
 import { ProjectionSection } from "@/components/funnel/ProjectionSection";
 import { ShoppingCart, TrendingUp } from "lucide-react";
 
-export const revalidate = 60; // Cache for 60 seconds
+// Force dynamic rendering to respect date filters
+export const dynamic = 'force-dynamic';
+
 
 interface Props {
     searchParams: { start?: string; end?: string };

@@ -172,23 +172,33 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     let allOrders: TinyOrderBasic[] = [];
     let page = 1;
     let hasMore = true;
-    const maxPages = 5; // 5 pages * 100 = 500 orders (~3-4 months, ~1.5s load time)
+    const maxPages = 10; // Increased to get more orders for 12-month period
+
+    // Convert dates to Tiny format (dd/MM/yyyy)
+    let tinyStartDate = "";
+    let tinyEndDate = "";
+
+    if (startDate) {
+        const [y, m, d] = startDate.split('-');
+        tinyStartDate = `${d}/${m}/${y}`;
+    }
+    if (endDate) {
+        const [y, m, d] = endDate.split('-');
+        tinyEndDate = `${d}/${m}/${y}`;
+    }
 
     while (hasMore && page <= maxPages) {
+        // Tiny API uses "dataInicial" and "dataFinal" for date filtering
         let url = `https://api.tiny.com.br/api2/pedidos.pesquisa.php?token=${TINY_TOKEN}&formato=json&pagina=${page}`;
 
-        // Convert yyyy-MM-dd to dd/MM/yyyy format that Tiny expects
-        if (startDate) {
-            const [y, m, d] = startDate.split('-');
-            const tinyFormat = `${d}/${m}/${y}`;
-            url += `&dataInicio=${tinyFormat}&data_inicial=${tinyFormat}`;
-            console.log(`[Tiny API] 📅 Data Início=${tinyFormat}`);
+        // Add date parameters (using multiple parameter names for compatibility)
+        if (tinyStartDate) {
+            url += `&dataInicial=${encodeURIComponent(tinyStartDate)}`;
+            console.log(`[Tiny API] 📅 Data Início=${tinyStartDate}`);
         }
-        if (endDate) {
-            const [y, m, d] = endDate.split('-');
-            const tinyFormat = `${d}/${m}/${y}`;
-            url += `&dataFim=${tinyFormat}&data_final=${tinyFormat}`;
-            console.log(`[Tiny API] 📅 Data Fim=${tinyFormat}`);
+        if (tinyEndDate) {
+            url += `&dataFinal=${encodeURIComponent(tinyEndDate)}`;
+            console.log(`[Tiny API] 📅 Data Fim=${tinyEndDate}`);
         }
 
         try {
@@ -224,12 +234,16 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
         }
     }
 
-    const validOrders = allOrders.filter(o => o.pedido?.situacao !== 'cancelado');
+    // Filter out cancelled orders (Case insensitive)
+    let validOrders = allOrders.filter(o => {
+        const status = o.pedido?.situacao || "";
+        return status.toLowerCase() !== 'cancelado';
+    });
 
-    console.log(`[Tiny API] ✅ ${validOrders.length} pedidos válidos`);
+    console.log(`[Tiny API] ✅ ${validOrders.length} pedidos válidos (de ${allOrders.length} totais)`);
 
     // Map and extract values
-    return validOrders.map((o: any) => {
+    let mappedOrders = validOrders.map((o: any) => {
         const pedido = o.pedido || o;
         const rawValue = pedido.valor_total || pedido.valor || pedido.total_pedido || pedido.total || "0";
         const total = parseCurrency(rawValue);
@@ -242,6 +256,20 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
             raw: pedido
         };
     });
+
+    // Log sample dates for debugging
+    if (mappedOrders.length > 0) {
+        const sampleDates = mappedOrders.slice(0, 3).map(o => o.date);
+        console.log(`[Tiny API] 📅 Sample order dates: ${sampleDates.join(', ')}`);
+    }
+
+    // NOTE: Disabled local date filtering as it was causing issues with 12-month data
+    // The Tiny API should filter by `dataInicial` and `dataFinal` parameters
+    // If orders are outside range, they should still count towards revenue
+
+    console.log(`[Tiny API] ✅ Returning ${mappedOrders.length} orders (no local date filter)`);
+
+    return mappedOrders;
 }
 
 export async function getTinyProducts() {

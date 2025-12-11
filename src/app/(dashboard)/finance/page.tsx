@@ -2,6 +2,8 @@ import { Header } from "@/components/layout/Header";
 import { ArrowUp, ArrowDown, DollarSign, Users, RefreshCw, ShoppingCart } from "lucide-react";
 import { fetchDashboardData } from "@/app/actions";
 import { Suspense } from "react";
+import { GlassCard } from "@/components/ui/GlassCard";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
 export const dynamic = 'force-dynamic';
 
@@ -21,27 +23,18 @@ export default async function FinancePage(props: Props) {
     console.log(`[Finance Page] 📊 Dados retornados:`);
     console.log(`  - Revenue: R$ ${data.revenue}`);
     console.log(`  - Transactions: ${data.transactions}`);
-    console.log(`  - Investment: R$ ${data.investment}`);
 
     // Calculated KPIs
     const ticketMedio = data.transactions > 0 ? data.revenue / data.transactions : 0;
-
-    // Estimate CAC (Investimento / Transações) - Crude approximation
     const cac = data.transactions > 0 ? data.investment / data.transactions : 0;
-
-    // ROI = (Receita - Investimento) / Investimento
     const roi = data.investment > 0 ? (data.revenue - data.investment) / data.investment : 0;
 
-    // Tiny vs GA4 discrepancy check
-    const revenueDiscrepancy = data.tinyTotalRevenue - data.revenue;
-
     const kpiData = [
-        { label: "Receita Faturada", value: data.revenue, trend: 0, icon: DollarSign, format: 'currency' },
-        { label: "Investimento Ads", value: data.investment, trend: 0, icon: DollarSign, format: 'currency' },
-        { label: "Ticket Médio", value: ticketMedio, trend: 0, icon: ShoppingCart, format: 'currency' },
-        { label: "ROI (ROAS Geral)", value: roi, trend: 0, icon: RefreshCw, format: 'decimal' },
-        { label: "Transações", value: data.transactions, trend: 0, icon: Users, format: 'number' },
-        // { label: "Discrepância Tiny", value: revenueDiscrepancy, trend: 0, icon: ShoppingCart, format: 'currency' },
+        { label: "Receita Faturada", value: data.revenue, icon: DollarSign, format: 'currency' },
+        { label: "Investimento Ads", value: data.investment, icon: DollarSign, format: 'currency' },
+        { label: "Ticket Médio", value: ticketMedio, icon: ShoppingCart, format: 'currency' },
+        { label: "ROI (ROAS Geral)", value: roi, icon: RefreshCw, format: 'decimal', suffix: 'x' },
+        { label: "Transações", value: data.transactions, icon: Users, format: 'number' },
     ];
 
     return (
@@ -49,46 +42,60 @@ export default async function FinancePage(props: Props) {
             <Suspense fallback={<div className="h-16 bg-slate-900 border-b border-slate-800" />}>
                 <Header title="Indicadores Financeiros (Real Time)" />
             </Suspense>
-            <main className="p-6 space-y-8 overflow-y-auto w-full">
+            <main className="p-6 space-y-8 overflow-y-auto w-full max-w-[1600px] mx-auto">
 
                 {/* Top KPIs Row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                     {kpiData.map((kpi, idx) => (
-                        <KpiCard key={idx} {...kpi} />
+                        <FinanceKpiCard key={idx} {...kpi} delay={idx} />
                     ))}
                 </div>
 
                 {/* Additional Details */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                        <h3 className="text-white font-bold mb-4">Eficiência de Pagamentos</h3>
-                        <div className="space-y-4">
-                            <div className="flex justify-between border-b border-slate-800 pb-2">
+                    <GlassCard delay={5} className="p-6">
+                        <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                            <ShoppingCart className="w-5 h-5 text-sky-400" />
+                            Eficiência de Pagamentos
+                        </h3>
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-center border-b border-white/5 pb-4">
                                 <span className="text-slate-400">Checkout Iniciado</span>
-                                <span className="text-white font-mono">{data.checkouts}</span>
-                            </div>
-                            <div className="flex justify-between border-b border-slate-800 pb-2">
-                                <span className="text-slate-400">Transações Concluídas</span>
-                                <span className="text-white font-mono">{data.transactions}</span>
-                            </div>
-                            <div className="flex justify-between pt-2">
-                                <span className="text-slate-400">Taxa de Conversão do Checkout</span>
-                                <span className="text-emerald-400 font-mono font-bold">
-                                    {data.checkouts > 0 ? ((data.transactions / data.checkouts) * 100).toFixed(2) : 0}%
+                                <span className="text-white font-mono text-lg font-medium">
+                                    <AnimatedNumber value={data.checkouts} />
                                 </span>
                             </div>
+                            <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                                <span className="text-slate-400">Transações Concluídas</span>
+                                <span className="text-white font-mono text-lg font-medium">
+                                    <AnimatedNumber value={data.transactions} />
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center pt-2">
+                                <span className="text-slate-400">Taxa de Conversão</span>
+                                <div className="text-emerald-400 font-mono font-bold text-xl">
+                                    <AnimatedNumber
+                                        value={data.checkouts > 0 ? ((data.transactions / data.checkouts) * 100) : 0}
+                                        format="decimal"
+                                    />%
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    </GlassCard>
 
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                        <h3 className="text-white font-bold mb-4">Custo por Aquisição (Estimado)</h3>
-                        <div className="flex items-center justify-center h-full flex-col">
-                            <span className="text-3xl font-bold text-white">
-                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cac)}
+                    <GlassCard delay={6} className="p-6 relative overflow-hidden">
+                        <div className="absolute right-0 top-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl" />
+                        <h3 className="text-lg font-bold text-white mb-4 relative z-10">Custo por Aquisição (Estimado)</h3>
+                        <div className="flex items-center justify-center h-[200px] flex-col relative z-10">
+                            <span className="text-5xl font-bold text-white tracking-tighter">
+                                <span className="text-2xl text-emerald-400 mr-1">R$</span>
+                                <AnimatedNumber value={cac} format="decimal" />
                             </span>
-                            <span className="text-slate-500 text-sm mt-2">Investimento Total / Transações</span>
+                            <span className="text-slate-400 text-sm mt-4 bg-slate-950/50 px-3 py-1 rounded-full border border-white/5">
+                                Investimento Total / Transações
+                            </span>
                         </div>
-                    </div>
+                    </GlassCard>
                 </div>
 
             </main>
@@ -96,25 +103,21 @@ export default async function FinancePage(props: Props) {
     );
 }
 
-function KpiCard({ label, value, trend, icon: Icon, format }: any) {
-    let displayValue = value;
-    if (format === 'currency') {
-        displayValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-    } else if (format === 'decimal') {
-        displayValue = value.toFixed(2) + 'x';
-    } else if (format === 'percent') {
-        displayValue = value.toFixed(2) + '%';
-    }
-
+function FinanceKpiCard({ label, value, icon: Icon, format, suffix = "", delay }: any) {
     return (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4 flex flex-col justify-between shadow-sm">
-            <div className="flex items-center justify-center mb-2">
-                {Icon && <Icon className="w-4 h-4 text-slate-500 mr-2" />}
-                <span className="text-xs text-slate-500 text-center uppercase tracking-wide">{label}</span>
+        <GlassCard delay={delay} className="flex flex-col justify-between h-[120px] group hover:border-sky-500/30">
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-slate-400 font-medium uppercase tracking-wide group-hover:text-sky-200 transition-colors">{label}</span>
+                {Icon && <Icon className="w-4 h-4 text-sky-500/70 group-hover:text-sky-400 transition-colors" />}
             </div>
-            <div className="text-center">
-                <p className="text-xl font-bold text-slate-900 dark:text-white">{displayValue}</p>
+            <div className="text-center mt-2 flex flex-col items-start">
+                <p className="text-2xl font-bold text-white tracking-tight group-hover:scale-105 transition-transform origin-left">
+                    <span className="mr-1">{format === 'currency' ? 'R$ ' : ''}</span>
+                    <AnimatedNumber value={value} format={format === 'currency' ? 'decimal' : format} />
+                    {suffix && <span className="ml-1 text-lg text-slate-500">{suffix}</span>}
+                </p>
             </div>
-        </div>
+        </GlassCard>
     )
 }
+

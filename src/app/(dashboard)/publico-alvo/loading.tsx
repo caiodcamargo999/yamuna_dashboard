@@ -1,12 +1,12 @@
-import { MetaAdsGridSkeleton } from "@/components/ui/Skeleton";
+import { GA4PageSkeleton } from "@/components/ui/Skeleton";
 import { Header } from "@/components/layout/Header";
 
 export default function Loading() {
     return (
         <>
-            <Header title="Meta Ads - Criativos" />
+            <Header title="Público-alvo (GA4)" />
             <main>
-                <MetaAdsGridSkeleton />
+                <GA4PageSkeleton />
             </main>
         </>
     );

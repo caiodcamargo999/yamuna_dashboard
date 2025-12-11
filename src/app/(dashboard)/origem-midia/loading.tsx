@@ -1,12 +1,12 @@
-import { MetaAdsGridSkeleton } from "@/components/ui/Skeleton";
+import { SourceMediumSkeleton } from "@/components/ui/Skeleton";
 import { Header } from "@/components/layout/Header";
 
 export default function Loading() {
     return (
         <>
-            <Header title="Meta Ads - Criativos" />
+            <Header title="Origem/Mídia (GA4)" />
             <main>
-                <MetaAdsGridSkeleton />
+                <SourceMediumSkeleton />
             </main>
         </>
     );

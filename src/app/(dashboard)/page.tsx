@@ -2,67 +2,50 @@ import { Header } from "@/components/layout/Header";
 import { FunnelOverview } from "@/components/charts/FunnelOverview";
 import { fetchDashboardData } from "@/app/actions";
 import { Suspense } from "react";
-import { DollarSign, ShoppingCart, Users, Rocket } from "lucide-react";
+import { DollarSign, ShoppingCart, Users, Rocket, TrendingUp, TrendingDown } from "lucide-react";
 import { format, subDays, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { GlassCard } from "@/components/ui/GlassCard";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
-// Enable ISR with 5 minute revalidation for better performance
-// Cache is also handled in actions.ts for API calls
+// Enable IOS with 5 minute revalidation for better performance
 export const revalidate = 300; // 5 minutes
 
-// Helper Component for the Cards
-function KPI_Card({ label, value, prefix = "", suffix = "", trend, invertTrend = false, isCurrency = true, variant = "default" }: any) {
-    const formattedValue = isCurrency
-        ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
-        : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value);
-
-    // If prefix/suffix is manual but we want currency formatting, we might just strip the currency symbol from Intl?
-    // Let's just use the formattedValue if isCurrency is true, ignoring manual prefix if it doubles up.
-    // Actually, for consistency let's just stick to a simple formatted display.
-    const displayValue = isCurrency ? formattedValue : `${prefix}${formattedValue}${suffix}`;
-
+// Helper Component for the Premium Glass Cards
+function KPIGlassCard({
+    label,
+    value,
+    prefix = "",
+    suffix = "",
+    trend,
+    invertTrend = false,
+    format = 'currency',
+    delay = 0
+}: any) {
     const isPositive = trend > 0;
-    const isGood = invertTrend ? !isPositive : isPositive; // If invert, positive trend is BAD (e.g. Cost)
+    const isGood = invertTrend ? !isPositive : isPositive;
 
-    // Correction: User image shows Cost increasing is Green (Good)? Maybe it represents scale?
-    // Let's stick to standard business logic: Revenue Up = Good (Green), Cost Up = Bad (Red) unless specifically desired otherwise.
-    // The image shows Investimento +1.0% (Green). So Spending More is viewed as Green (Scaling).
-    // % Custo +4.3% (Green).
-    // CAC -15% (Green).
-    // OK, so Green always means "Trend is Green" visually, but mathematically we should care.
-    // The image shows pure Green for Up, Red for Down regardless of metric type?
-    // Cost % Up being Green is weird. Let's look closer.
-    // % Custo +4.3% is GREEN arrow. 
-    // Ticket Medio -6.8% is RED arrow.
-    // Retention -12.2% is RED arrow.
-    // So Up = Green, Down = Red seems to be the visual rule used in the mockup, regardless of meaning.
-    // EXCEPT CAC -15.0% is GREEN. Wait.
-    // CAC going DOWN is GOOD. So Green.
-    // Ticket Medio going DOWN is BAD. So Red.
-    // So it IS semantic colors.
-
-    const colorClass = isGood ? "text-emerald-400" : "text-red-400";
-    const arrow = isPositive ? "⬆" : "⬇";
-
-    const bgClass = variant === "dark" ? "bg-slate-950 border-slate-900" : "bg-slate-900 border-slate-800";
+    // Determine trend color
+    const trendColor = isGood ? "text-emerald-400" : "text-rose-400";
+    const TrendIcon = isPositive ? TrendingUp : TrendingDown;
 
     return (
-        <div className={`p-4 rounded-xl border ${bgClass} flex flex-col justify-between h-[110px]`}>
-            <span className="text-xs text-slate-400 font-medium">{label}</span>
-            <div className="mt-1">
-                <p className="text-xl font-bold text-white tracking-tight">
-                    {displayValue}
-                </p>
-                {trend !== 0 && (
-                    <span className={`text-[10px] font-semibold mt-1 block ${colorClass}`}>
-                        {arrow} {Math.abs(trend)}%
-                    </span>
-                )}
+        <GlassCard delay={delay} className="flex flex-col justify-between h-[120px] group">
+            <div className="flex justify-between items-start">
+                <span className="text-xs text-slate-400 font-medium uppercase tracking-wider group-hover:text-slate-300 transition-colors">
+                    {label}
+                </span>
             </div>
-        </div>
+
+            <div className="mt-2">
+                <div className="text-2xl font-bold text-white tracking-tight flex items-baseline gap-1 group-hover:scale-105 transition-transform origin-left">
+                    {prefix && <span className="text-lg text-slate-500 font-medium">{prefix}</span>}
+                    <AnimatedNumber value={value} format={format} />
+                    {suffix && <span className="text-sm text-slate-500 font-medium">{suffix}</span>}
+                </div>
+            </div>
+        </GlassCard>
     );
 }
-
 
 interface Props {
     searchParams: Promise<{ start?: string; end?: string }>;
@@ -77,11 +60,6 @@ export default async function DashboardPage(props: Props) {
 
     // Fetch real data on server side
     const data = await fetchDashboardData(startDate, endDate);
-
-    // Hardcoded goals/projections since we don't have a backend DB for user settings yet
-    const goal = 0;
-    const projected = 0;
-    // investment comes from GA4 now (advertiserAdCost)
 
     // Funnel data 
     const funnelData = [
@@ -98,7 +76,6 @@ export default async function DashboardPage(props: Props) {
         { stage: "Transações", users: data.transactions, value: data.transactions.toLocaleString('pt-BR'), subLabel: "Transações" },
     ];
 
-    // Calculate display strings for Filter Status
     const displayStart = startDate === "30daysAgo"
         ? format(subDays(new Date(), 30), "dd/MM/yyyy")
         : format(parseISO(startDate), "dd/MM/yyyy");
@@ -110,99 +87,105 @@ export default async function DashboardPage(props: Props) {
     return (
         <>
             <Header title="Check-in Loja Virtual" />
-            <div className="p-4 lg:p-8 space-y-6">
+            <div className="p-4 lg:p-8 space-y-8 max-w-[1600px] mx-auto">
 
-                {/* Active Filter Indicator */}
-                <div className="text-xs text-slate-400 -mt-4 mb-4">
-                    Filtro Ativo: <span className="text-indigo-400 font-medium">{displayStart} até {displayEnd}</span>
+                {/* Filter Badge */}
+                <div className="flex items-center gap-2 -mt-4 mb-6">
+                    <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="text-xs text-slate-400 bg-slate-900/50 px-3 py-1 rounded-full border border-slate-800 backdrop-blur-sm">
+                        Período: <span className="text-sky-400 font-semibold">{displayStart} até {displayEnd}</span>
+                    </span>
                 </div>
 
-                {/* Custom KPI Dashboard */}
-                <div className="space-y-8">
+                {/* Dashboard Grid */}
+                <div className="space-y-10">
 
-                    {/* Row 1: Cost/Investment */}
-                    <div className="relative">
-                        <div className="absolute -top-3 left-6 z-10 bg-orange-500 rounded-full p-1.5 shadow-lg shadow-orange-900/20">
-                            <DollarSign className="text-white w-4 h-4" />
+                    {/* Section 1: Investment & Efficiency */}
+                    <section className="relative">
+                        <div className="absolute -left-4 -top-4 w-20 h-20 bg-orange-500/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="flex items-center gap-2 mb-4 ml-1">
+                            <div className="p-1.5 rounded-lg bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
+                                <DollarSign className="text-white w-4 h-4" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Investimento & Eficiência</h3>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <KPI_Card label="Investimento" value={data.kpis.investment} trend={0} prefix="R$ " />
-                            <KPI_Card label="% Custo" value={data.kpis.costPercentage} suffix="%" trend={0} isCurrency={false} />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <KPIGlassCard label="Investimento Total" value={data.kpis.investment} prefix="R$ " delay={1} />
+                            <KPIGlassCard label="% Custo sobre Venda" value={data.kpis.costPercentage} suffix="%" format="decimal" delay={2} invertTrend />
+                            <KPIGlassCard label="Custo por Aquisição (CAC)" value={data.kpis.cac} prefix="R$ " delay={3} invertTrend />
+                            <KPIGlassCard label="ROI (ROAS Geral)" value={(data.kpis.investment > 0 ? (data.revenue / data.kpis.investment) : 0)} suffix="x" format="decimal" delay={4} />
                         </div>
-                    </div>
+                    </section>
 
-                    {/* Row 2: Sales */}
-                    <div className="relative">
-                        <div className="absolute -top-3 left-6 z-10 bg-orange-500 rounded-full p-1.5 shadow-lg shadow-orange-900/20">
-                            <ShoppingCart className="text-white w-4 h-4" />
+                    {/* Section 2: Sales & Revenue */}
+                    <section className="relative">
+                        <div className="absolute -right-4 -top-4 w-20 h-20 bg-sky-500/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="flex items-center gap-2 mb-4 ml-1">
+                            <div className="p-1.5 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg shadow-sky-500/20">
+                                <ShoppingCart className="text-white w-4 h-4" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Vendas & Receita</h3>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <KPI_Card label="Ticket Médio" value={data.kpis.ticketAvg} trend={0} prefix="R$ " />
-                            <KPI_Card label="Ticket Médio Novos Clientes" value={data.kpis.ticketAvgNew} trend={0} prefix="R$ " />
-                            <KPI_Card label="Retenção" value={data.kpis.retentionRevenue} trend={0} prefix="R$ " />
-                            <KPI_Card label="Receita Nova" value={data.kpis.newRevenue} trend={0} prefix="R$ " />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <KPIGlassCard label="Receita Total" value={data.revenue} prefix="R$ " delay={5} />
+                            <KPIGlassCard label="Ticket Médio" value={data.kpis.ticketAvg} prefix="R$ " delay={6} />
+                            <KPIGlassCard label="Receita Retenção (Est.)" value={data.kpis.retentionRevenue} prefix="R$ " delay={7} />
+                            <KPIGlassCard label="Receita Novos (Est.)" value={data.kpis.newRevenue} prefix="R$ " delay={8} />
                         </div>
-                    </div>
+                    </section>
 
-                    {/* Row 3: Customers */}
-                    <div className="relative">
-                        <div className="absolute -top-3 left-6 z-10 bg-orange-500 rounded-full p-1.5 shadow-lg shadow-orange-900/20">
-                            <Users className="text-white w-4 h-4" />
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <KPI_Card label="Clientes Adquiridos" value={data.kpis.acquiredCustomers} trend={0} isCurrency={false} />
-                            <KPI_Card label="Custo de Aquisição (CAC)" value={data.kpis.cac} trend={0} prefix="R$ " />
-                        </div>
-                    </div>
-
-                    {/* Row 4: Long Term (12 Months) */}
-                    <div className="relative">
-                        <div className="absolute -top-3 left-6 z-10 bg-orange-500 rounded-full p-1.5 shadow-lg shadow-orange-900/20">
-                            <Rocket className="text-white w-4 h-4" />
+                    {/* Section 3: Growth & Long Term */}
+                    <section className="relative">
+                        <div className="absolute left-1/2 -top-4 w-32 h-20 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                        <div className="flex items-center gap-2 mb-4 ml-1">
+                            <div className="p-1.5 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/20">
+                                <Rocket className="text-white w-4 h-4" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Crescimento (12 Meses)</h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <KPI_Card label="Faturamento 12 Meses" value={data.kpis.revenue12m} trend={0} prefix="R$ " variant="dark" />
-                            <KPI_Card label="LTV 12 Meses" value={data.kpis.ltv12m} trend={0} prefix="R$ " variant="dark" />
-                            <KPI_Card label="ROI 12 Meses" value={data.kpis.roi12m} suffix="%" trend={0} isCurrency={false} variant="dark" />
+                            <KPIGlassCard label="Faturamento 12M" value={data.kpis.revenue12m} prefix="R$ " delay={9} />
+                            <KPIGlassCard label="LTV Estimado 12M" value={data.kpis.ltv12m} prefix="R$ " delay={10} />
+                            <KPIGlassCard label="ROI 12 Meses" value={data.kpis.roi12m} suffix="%" format="decimal" delay={11} />
                         </div>
-                    </div>
+                    </section>
 
                 </div>
 
-                {/* Funnel Section Preview */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 p-6 rounded-xl bg-slate-900 border border-slate-800">
-                        <h3 className="text-lg font-semibold text-white mb-4">Funil de Vendas</h3>
-                        <div className="min-h-[300px] flex items-center justify-center p-4">
+                {/* Bottom Section: Funnel & Last Month */}
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 pt-4">
+                    <GlassCard className="xl:col-span-2 min-h-[400px]" delay={12}>
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-semibold text-white">Funil de Vendas</h3>
+                            <div className="px-2 py-1 bg-white/5 rounded text-xs text-slate-400">Tempo Real</div>
+                        </div>
+                        <div className="flex-1 flex items-center justify-center">
                             <FunnelOverview data={funnelData} />
                         </div>
-                    </div>
+                    </GlassCard>
 
                     <div className="space-y-6">
-                        <div className="p-6 rounded-xl bg-slate-900 border border-slate-800">
-                            <h3 className="text-lg font-semibold text-white mb-4">Dados Mês Anterior</h3>
-                            <div className="space-y-4">
-                                <div>
-                                    <span className="text-sm text-slate-400">Receita</span>
-                                    <p className="text-xl font-bold text-white">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.revenueLastMonth || 0)}
-                                    </p>
+                        <GlassCard delay={13}>
+                            <h3 className="text-lg font-semibold text-white mb-4">Mês Anterior ({data.lastMonthLabel})</h3>
+                            <div className="space-y-6">
+                                <div className="p-4 bg-slate-950/40 rounded-lg border border-white/5">
+                                    <span className="text-sm text-slate-400 block mb-1">Receita Faturada</span>
+                                    <div className="text-2xl font-bold text-emerald-400">
+                                        R$ <AnimatedNumber value={data.revenueLastMonth || 0} format="decimal" />
+                                    </div>
                                 </div>
-                                <div>
-                                    <span className="text-sm text-slate-400">Investimento</span>
-                                    <p className="text-xl font-bold text-white">
-                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.investmentLastMonth || 0)}
-                                    </p>
-                                </div>
-                                <div>
-                                    <span className="text-xs text-slate-500">Período: {data.lastMonthLabel}</span>
-                                    <div className="bg-slate-800 text-slate-500 font-bold p-2 text-center rounded mt-1">-</div>
+                                <div className="p-4 bg-slate-950/40 rounded-lg border border-white/5">
+                                    <span className="text-sm text-slate-400 block mb-1">Investimento Ads</span>
+                                    <div className="text-2xl font-bold text-white">
+                                        R$ <AnimatedNumber value={data.investmentLastMonth || 0} format="decimal" />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </GlassCard>
                     </div>
                 </div>
             </div>
         </>
     );
 }
+

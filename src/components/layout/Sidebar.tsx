@@ -1,11 +1,10 @@
 "use client";
 
 import Image from "next/image";
-
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useCallback, useTransition } from "react";
 import {
     LayoutDashboard,
     Megaphone,
@@ -72,6 +71,7 @@ const sidebarItems = [
 
 export function Sidebar() {
     const pathname = usePathname();
+    const router = useRouter();
     const [isMobileOpen, setIsMobileOpen] = useState(false);
 
     return (
@@ -113,7 +113,9 @@ export function Sidebar() {
                                 <Link
                                     key={item.href}
                                     href={item.href}
+                                    prefetch={true}
                                     onClick={() => setIsMobileOpen(false)}
+                                    onMouseEnter={() => router.prefetch(item.href)}
                                     className={cn(
                                         "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                                         isActive

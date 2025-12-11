@@ -1,12 +1,12 @@
-import { MetaAdsGridSkeleton } from "@/components/ui/Skeleton";
+import { ProductsTableSkeleton } from "@/components/ui/Skeleton";
 import { Header } from "@/components/layout/Header";
 
 export default function Loading() {
     return (
         <>
-            <Header title="Meta Ads - Criativos" />
+            <Header title="RFM - Clientes" />
             <main>
-                <MetaAdsGridSkeleton />
+                <ProductsTableSkeleton />
             </main>
         </>
     );

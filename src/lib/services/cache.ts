@@ -73,9 +73,37 @@ export async function withCache<T>(
 
 /**
  * Invalidate cache by key or pattern
+ * If no key/pattern provided, clears ALL cache
  */
 export async function invalidateCache(keyOrPattern?: string): Promise<void> {
-    // Redis invalidation
+    // Clear all cache if no pattern
+    if (!keyOrPattern) {
+        // Clear memory cache
+        memoryCache.clear();
+        console.log(`[Cache] 🗑️ Cleared all memory cache`);
+
+        // Clear Redis cache - get all keys and delete
+        if (redis) {
+            try {
+                // Use scan to get all keys and delete them
+                let cursor = 0;
+                do {
+                    const [nextCursor, keys] = await redis.scan(cursor, { count: 100 }) as [number, string[]];
+                    cursor = nextCursor;
+                    if (keys.length > 0) {
+                        await redis.del(...keys);
+                        console.log(`[Cache] 🗑️ Redis deleted ${keys.length} keys`);
+                    }
+                } while (cursor !== 0);
+                console.log(`[Cache] 🗑️ Cleared all Redis cache`);
+            } catch (error) {
+                console.error(`[Cache] Error clearing all Redis cache:`, error);
+            }
+        }
+        return;
+    }
+
+    // Redis invalidation for specific key
     if (redis && keyOrPattern) {
         try {
             // For pattern matching, we'd need to scan keys
@@ -88,12 +116,6 @@ export async function invalidateCache(keyOrPattern?: string): Promise<void> {
     }
 
     // Memory cache invalidation
-    if (!keyOrPattern) {
-        memoryCache.clear();
-        console.log(`[Cache] 🗑️ Cleared all memory cache`);
-        return;
-    }
-
     for (const key of memoryCache.keys()) {
         if (key.includes(keyOrPattern)) {
             memoryCache.delete(key);

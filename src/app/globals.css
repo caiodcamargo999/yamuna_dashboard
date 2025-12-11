@@ -13,13 +13,13 @@
   --background: #020617; /* slate-950 */
   --foreground: #f8fafc; /* slate-50 */
   
-  --card: #0f172a; /* slate-900 */
+  --card: rgba(15, 23, 42, 0.6); /* Glassy slate-900 */
   --card-foreground: #f8fafc;
  
   --popover: #0f172a;
   --popover-foreground: #f8fafc;
  
-  --primary: #f8fafc;
+  --primary: #38bdf8; /* Sky 400 - Vibrant Accent */
   --primary-foreground: #020617;
  
   --secondary: #1e293b; /* slate-800 */
@@ -28,21 +28,25 @@
   --muted: #1e293b;
   --muted-foreground: #94a3b8; /* slate-400 */
  
-  --accent: #1e293b;
+  --accent: #0ea5e9; /* Sky 500 */
   --accent-foreground: #f8fafc;
  
-  --destructive: #7f1d1d;
+  --destructive: #ef4444;
   --destructive-foreground: #f8fafc;
 
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #cbd5e1;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(15, 23, 42, 0.5);
+  --ring: #38bdf8;
   
-  --radius: 0.5rem;
+  --radius: 0.75rem;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-sans);
 }

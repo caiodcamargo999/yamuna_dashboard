@@ -1,292 +1,122 @@
-# 🔧 Correções Técnicas - Métricas Dashboard Yamuna
+# 🔧 Correções de Métricas - Dashboard Yamuna
 
-## 🚨 PROBLEMAS CRÍTICOS ENCONTRADOS
+## ✅ CORREÇÕES IMPLEMENTADAS (10/12/2025)
 
-### 1. Clientes Adquiridos (CRÍTICO)
+### 1. Filtros de Data no Tiny API (CORRIGIDO)
 
-**Arquivo:** `src/app/actions.ts` (linha 201)
+**Problema anterior:**
+A API do Tiny não estava filtrando corretamente por data, retornando todos os pedidos independente do período.
+
+**Correção aplicada:**
+1. Ajustado parâmetros da API: `dataInicial` e `dataFinal` (padrão Tiny)
+2. Adicionado **filtro local de data** como backup - se a API não filtrar, o código filtra manualmente
+3. Aumentado limite de páginas para 10 (busca mais pedidos para períodos de 12 meses)
 
 ```typescript
-// ❌ ATUAL - INCORRETO
-const acquiredCustomers = googleData?.purchasers || 0;
-// PROBLEMA: purchasers = totalUsers do GA4, não clientes que compraram!
-```
-
-**Correção Necessária:**
-```typescript
-// ✅ CORRETO - Contar primeiras compras do período
-async function countFirstTimeBuyers(
-  tinyOrders: any[], 
-  wakeOrders: any[], 
-  startDate: string, 
-  endDate: string
-): Promise<number> {
-  // Combinar pedidos de ambas as fontes
-  const allOrders = [...tinyOrders, ...wakeOrders];
-  
-  // Agrupar por cliente e encontrar data da primeira compra
-  const customerFirstPurchase = new Map<string, Date>();
-  
-  allOrders.forEach(order => {
-    const customerId = order.cliente_id || order.customer_id || order.email;
-    const orderDate = parseOrderDate(order);
-    
-    if (!customerFirstPurchase.has(customerId) || 
-        orderDate < customerFirstPurchase.get(customerId)!) {
-      customerFirstPurchase.set(customerId, orderDate);
-    }
-  });
-  
-  // Contar clientes cuja primeira compra está no período
-  const start = parseISO(startDate);
-  const end = parseISO(endDate);
-  
-  return Array.from(customerFirstPurchase.values())
-    .filter(date => date >= start && date <= end)
-    .length;
-}
+// Filtro local como backup
+mappedOrders = mappedOrders.filter(order => {
+    const orderDateISO = convertToISO(order.date);
+    return orderDateISO >= startISO && orderDateISO <= endISO;
+});
 ```
 
 ---
 
-### 2. LTV 12 Meses (CRÍTICO)
+### 2. Faturamento 12 Meses ≠ Receita Mês Anterior (CORRIGIDO)
 
-**Arquivo:** `src/app/actions.ts` (linha 192-193)
+**Problema anterior:**
+Ambos mostravam o mesmo valor (R$ 302.854,86) porque usavam cache keys similares.
 
-```typescript
-// ❌ ATUAL - INCORRETO
-const uniqueCustomers12m = google12m?.purchasers || 0; // É totalUsers!
-const ltv12m = uniqueCustomers12m > 0 ? revenue12m / uniqueCustomers12m : 0;
-```
-
-**Correção Necessária:**
-```typescript
-// ✅ CORRETO - Usar clientes únicos do Tiny/Wake
-async function getUniqueCustomers12m(startDate: string, endDate: string): Promise<number> {
-  const [tinyOrders, wakeOrders] = await Promise.all([
-    getTinyOrders(startDate, endDate),
-    getWakeOrders(startDate, endDate)
-  ]);
-  
-  const uniqueCustomers = new Set<string>();
-  
-  [...tinyOrders, ...wakeOrders].forEach(order => {
-    const customerId = order.cliente_id || order.customer_id || order.email;
-    if (customerId) uniqueCustomers.add(customerId);
-  });
-  
-  return uniqueCustomers.size;
-}
-
-const uniqueCustomers12m = await getUniqueCustomers12m(start12mStr, end12mStr);
-const ltv12m = uniqueCustomers12m > 0 ? revenue12m / uniqueCustomers12m : 0;
-```
+**Correção aplicada:**
+- Cache key de 12 meses: `metrics:12months:YYYY-MM-DD`
+- Cache key do mês anterior: `metrics:previousMonth:YYYY-MM-DD:YYYY-MM-DD`
+- Logs distintos para facilitar debug: `[12M Metrics]` vs `[LastMonth]`
 
 ---
 
-### 3. Receita Nova vs Retenção (CRÍTICO)
+### 3. Receita Nova não Filtrava (CORRIGIDO)
 
-**Arquivo:** `src/app/actions.ts` (linhas 147-165)
+**Problema anterior:**
+Quando filtrava para 1 dia, a "Receita Nova" continuava mostrando valor do período maior.
 
-```typescript
-// ❌ ATUAL - ESTIMATIVA IMPRECISA
-const newCustomerRatio = totalPurchasers > 0 
-  ? Math.min(newUsers / totalPurchasers, 1.0) 
-  : 0.25;
-const newRevenue = totalRevenue * newCustomerRatio;
-const retentionRevenue = totalRevenue - newRevenue;
-```
-
-**Correção Necessária:**
-```typescript
-// ✅ CORRETO - Calcular baseado em dados reais de clientes
-async function calculateRevenueSegmentation(
-  orders: any[],
-  startDate: string,
-  endDate: string
-): Promise<{ newRevenue: number; retentionRevenue: number; newCustomers: number }> {
-  // Buscar histórico completo de clientes
-  const historicalOrders = await getTinyOrders('2020-01-01', startDate);
-  
-  // Criar set de clientes que já compraram antes
-  const existingCustomers = new Set<string>();
-  historicalOrders.forEach(order => {
-    const customerId = getCustomerId(order);
-    if (customerId) existingCustomers.add(customerId);
-  });
-  
-  let newRevenue = 0;
-  let retentionRevenue = 0;
-  let newCustomers = 0;
-  const newCustomerIds = new Set<string>();
-  
-  orders.forEach(order => {
-    const customerId = getCustomerId(order);
-    const orderValue = order.total || 0;
-    
-    if (existingCustomers.has(customerId)) {
-      // Cliente já existia
-      retentionRevenue += orderValue;
-    } else {
-      // Novo cliente
-      newRevenue += orderValue;
-      if (!newCustomerIds.has(customerId)) {
-        newCustomers++;
-        newCustomerIds.add(customerId);
-      }
-    }
-  });
-  
-  return { newRevenue, retentionRevenue, newCustomers };
-}
-```
+**Correção aplicada:**
+- O filtro de data agora é aplicado localmente nos pedidos retornados do Tiny
+- A segmentação de clientes novos vs recorrentes usa o período CORRETO do filtro
 
 ---
 
-### 4. Google Ads - Página Zerada (CRÍTICO)
+### 4. Transações (VERIFICADO)
 
-**Arquivo:** `src/app/(dashboard)/google-ads/page.tsx`
-
-```typescript
-// ❌ ATUAL - DADOS HARDCODED
-const metrics = {
-  impressions: 0,
-  clicks: 0,
-  cpcAvg: 0,
-  // ...todos zeros
-};
-const campaigns: any[] = [];
-```
-
-**Correção Necessária:**
-Implementar serviço Google Ads similar ao Meta:
-
-```typescript
-// src/lib/services/google-ads.ts
-import { google } from 'googleapis';
-
-const GOOGLE_ADS_CUSTOMER_ID = process.env.GOOGLE_ADS_CUSTOMER_ID;
-const GOOGLE_ADS_DEVELOPER_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
-
-export async function getGoogleAdsCampaigns(startDate: string, endDate: string) {
-  // Implementar usando Google Ads API
-  // Requer: Developer Token, OAuth, Customer ID
-}
-```
+**Como funciona:**
+- `transactions = allOrders.length` (número de pedidos do Tiny + Wake)
+- Pedidos cancelados são excluídos
+- Filtro de data aplicado corretamente
 
 ---
 
-### 5. Wake API Não Utilizada
+## 📊 COMO OS DADOS SÃO CALCULADOS
 
-**Arquivo:** `src/app/actions.ts` (linha 108)
+### Período Selecionado (Filtro do Usuário)
+| Métrica | Fonte | Descrição |
+|---------|-------|-----------|
+| Investimento | Meta + Google | Muda com o filtro |
+| % Custo | Calculado | Muda com o filtro |
+| Ticket Médio | Tiny/Wake | Muda com o filtro |
+| Receita Nova | Tiny/Wake | **MUDA COM O FILTRO** |
+| Retenção | Tiny/Wake | Muda com o filtro |
+| CAC | Calculado | Muda com o filtro |
+| Clientes Adquiridos | Tiny/Wake | Muda com o filtro |
 
-```typescript
-// ❌ ATUAL - Wake é buscado mas não usado
-const [googleData, tinyOrdersRaw, metaData, wakeOrders] = await Promise.all([...]);
-// wakeOrders nunca é processado!
-```
-
-**Correção Necessária:**
-```typescript
-// ✅ CORRETO - Consolidar Tiny + Wake
-const tinyOrders = tinyOrdersRaw || [];
-const wakeOrdersFiltered = (wakeOrders || []).map(normalizeWakeOrder);
-
-// Merge sem duplicatas (por ID do pedido)
-const allOrders = mergeOrders(tinyOrders, wakeOrdersFiltered);
-const totalRevenue = allOrders.reduce((acc, order) => acc + order.total, 0);
-```
-
----
-
-## 📁 ARQUIVOS A CRIAR/MODIFICAR
-
-### Novo: `src/lib/services/cache.ts`
-```typescript
-import { Redis } from '@upstash/redis';
-
-const redis = process.env.UPSTASH_REDIS_REST_URL 
-  ? new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-    })
-  : null;
-
-export async function withCache<T>(
-  key: string,
-  fetcher: () => Promise<T>,
-  ttl: number = 300
-): Promise<T> {
-  if (!redis) return fetcher();
-  
-  const cached = await redis.get<T>(key);
-  if (cached) return cached;
-  
-  const data = await fetcher();
-  await redis.setex(key, ttl, data);
-  return data;
-}
-```
-
-### Novo: `src/lib/services/customers.ts`
-```typescript
-// Lógica de clientes novos vs recorrentes
-export async function analyzeCustomers(orders: Order[], historicalOrders: Order[]) {
-  // Implementar segmentação de clientes
-}
-```
-
-### Modificar: `src/app/actions.ts`
-- Adicionar cache
-- Corrigir cálculo de acquiredCustomers
-- Integrar Wake
-- Separar métricas 12m
+### Dados FIXOS (Não mudam com filtro)
+| Métrica | Período | Descrição |
+|---------|---------|-----------|
+| Faturamento 12m | Últimos 365 dias | Sempre fixo |
+| LTV 12m | Últimos 365 dias | Sempre fixo |
+| ROI 12m | Últimos 365 dias | Sempre fixo |
+| Receita Mês Anterior | Novembro (mês calendario anterior) | Sempre novembro |
+| Investimento Mês Anterior | Novembro | Sempre novembro |
 
 ---
 
-## 🔑 VARIÁVEIS DE AMBIENTE NECESSÁRIAS
+## 🔍 COMO VERIFICAR SE OS DADOS ESTÃO CORRETOS
 
-```env
-# Cache (Upstash)
-UPSTASH_REDIS_REST_URL=
-UPSTASH_REDIS_REST_TOKEN=
+### 1. Limpar Cache
+Vá em **Configurações** > **Limpar Cache** para forçar reload de todos os dados.
 
-# Google Ads (para página Google Ads)
-GOOGLE_ADS_CUSTOMER_ID=
-GOOGLE_ADS_DEVELOPER_TOKEN=
-GOOGLE_ADS_LOGIN_CUSTOMER_ID=
+### 2. Verificar Logs no Terminal
+Procure por:
+```
+[12M Metrics] �️ Period: 2024-12-10 to 2025-12-10 (365 days)
+[12M Metrics] ✅ Orders found: 850
+[12M Metrics] ✅ Revenue: R$ 450000.00
 
-# Existentes (verificar se corretas)
-TINY_API_TOKEN=
-WAKE_API_URL=
-WAKE_API_TOKEN=
-GA4_PROPERTY_ID=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REFRESH_TOKEN=
-META_ADS_ACCESS_TOKEN=
-META_ADS_ACCOUNT_ID=
+[LastMonth] �️ Period: 2025-11-01 to 2025-11-30 (novembro)
+[LastMonth] ✅ Orders found: 45
+[LastMonth] ✅ Revenue: R$ 25000.00
+
+[Tiny API] � After local date filter: 45 orders
 ```
 
----
-
-## 📊 COMPARAÇÃO: ANTES vs DEPOIS
-
-| Métrica | Fórmula Atual | Fórmula Correta (PDF) |
-|---------|---------------|----------------------|
-| Clientes Adquiridos | GA4 totalUsers | COUNT(first_purchase in period) |
-| CAC | investment / GA4.users | investment / newCustomers |
-| LTV 12m | revenue12m / GA4.users | revenue12m / uniqueCustomers12m |
-| Retenção | revenue * (1 - newUserRatio) | SUM(revenue WHERE returning) |
-| Receita Nova | revenue * newUserRatio | SUM(revenue WHERE first_purchase) |
+### 3. Filtrar para 1 Dia
+- Selecione 1 dia no filtro
+- Receita Nova e Retenção devem mostrar valores MENORES
+- Faturamento 12m e Mês Anterior devem permanecer IGUAL
 
 ---
 
-## ⚠️ ORDEM DE IMPLEMENTAÇÃO
+## ⚠️ LIMITAÇÕES CONHECIDAS
 
-1. **Cache primeiro** - Reduz carga nas APIs
-2. **Corrigir acquiredCustomers** - Métrica mais crítica
-3. **Corrigir LTV** - Depende de customers corretos
-4. **Implementar Retenção/Receita Nova** - Requer histórico
-5. **Integrar Wake** - Dados complementares
-6. **Google Ads API** - Página funcional
+### Tiny API
+- Máximo de 1000 pedidos por busca (10 páginas × 100)
+- Para períodos muito longos, pode não pegar todos os pedidos
+- Solução: aumentar `maxPages` se necessário
+
+### Wake API
+- Se não houver token, pedidos Wake não são incluídos
+
+### Identificação de Clientes
+- Se o Tiny não retornar dados de cliente, usamos GA4 newUsers como estimativa
+
+---
+
+*Última atualização: 10/12/2025 22:50*

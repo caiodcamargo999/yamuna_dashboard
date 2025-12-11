@@ -5,7 +5,8 @@ import { getTinyOrders } from "@/lib/services/tiny";
 import { getMetaAdsInsights } from "@/lib/services/meta";
 import { getWakeOrders } from "@/lib/services/wake";
 import { getTopProductsByPeriod } from "@/lib/services/tiny-products";
-import { getCurrentMonthGoal, getPreviousMonthGoal, setMonthlyGoal as setGoalDB } from "@/lib/supabase/goals";
+// Using local storage instead of Supabase for goals
+import { getCurrentMonthGoalLocal, getPreviousMonthGoalLocal, saveMonthlyGoalLocal } from "@/app/goals-local";
 import { withCache, CACHE_TTL } from "@/lib/services/cache";
 import { mergeOrders, getUniqueCustomerCount } from "@/lib/services/customers";
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, subDays } from "date-fns";
@@ -87,8 +88,8 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
             return { ga4, meta, tiny: tiny || [], wake: wake || [] };
         }, CACHE_TTL.LONG),
 
-        getCurrentMonthGoal(),
-        getPreviousMonthGoal()
+        getCurrentMonthGoalLocal(),
+        getPreviousMonthGoalLocal()
     ]);
 
     // 5. Merge orders from Tiny + Wake
@@ -148,6 +149,23 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
         ? (prevMonthRevenue / prevGoal.revenue_goal) * 100
         : 0;
 
+    // 12. Calculate historical averages for projections
+    // Use previous month as historical baseline
+    const prevMonthSessions = prevMonthData.ga4?.sessions || 0;
+    const historicalConversionRate = prevMonthSessions > 0
+        ? (prevMonthTransactions / prevMonthSessions) * 100
+        : conversionRate; // Fallback to current
+
+    const historicalAvgTicket = prevMonthTransactions > 0
+        ? prevMonthRevenue / prevMonthTransactions
+        : avgTicket;
+
+    const historicalROAS = prevMonthInvestment > 0
+        ? prevMonthRevenue / prevMonthInvestment
+        : (currentMonthInvestment > 0 ? currentMonthRevenue / currentMonthInvestment : 3.0); // Default ROAS
+
+    console.log(`[Funnel] 📊 Historical: Conv=${historicalConversionRate.toFixed(2)}%, Ticket=R$ ${historicalAvgTicket.toFixed(2)}, ROAS=${historicalROAS.toFixed(2)}x`);
+
     return {
         // Selected period funnel
         selectedPeriod: {
@@ -174,7 +192,9 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
             projectedRevenue,
             projectedTransactions,
             goal: currentGoal,
-            revenueGoalPercent
+            revenueGoalPercent,
+            daysElapsed: currentDay,
+            daysInMonth
         },
         // Previous month
         previousMonth: {
@@ -185,12 +205,19 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
             investment: prevMonthInvestment,
             goal: prevGoal,
             revenueGoalPercent: prevRevenueGoalPercent
+        },
+        // Historical averages for projections
+        historical: {
+            conversionRate: historicalConversionRate,
+            avgTicket: historicalAvgTicket,
+            roas: historicalROAS
         }
     };
 }
 
 /**
  * Save Monthly Goal (Server Action)
+ * Using local storage instead of Supabase
  */
 export async function saveMonthlyGoal(
     month: number,
@@ -202,11 +229,7 @@ export async function saveMonthlyGoal(
     "use server";
     try {
         console.log(`[Save Goal] Saving: Month=${month}, Year=${year}, Revenue=${revenueGoal}`);
-        const result = await setGoalDB(month, year, revenueGoal, transactionsGoal, adBudgetGoal);
-
-        if (!result) {
-            return { success: false, error: "Database returned null" };
-        }
+        const result = await saveMonthlyGoalLocal(month, year, revenueGoal, transactionsGoal, adBudgetGoal);
 
         console.log('[Save Goal] ✅ Saved successfully');
         return { success: true, data: result };

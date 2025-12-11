@@ -2,7 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { Header } from '@/components/layout/Header'
 import { updateProfile, updatePassword, linkGoogle } from './actions'
 import { redirect } from 'next/navigation'
-import { User, Lock, Mail, Globe } from 'lucide-react'
+import { User, Lock, Mail, Globe, RefreshCw } from 'lucide-react'
+import { CacheSection } from './CacheSection'
 
 export default async function SettingsPage() {
     const supabase = await createClient()
@@ -148,6 +149,9 @@ export default async function SettingsPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* Cache & Data Section */}
+                <CacheSection />
             </main>
         </>
     )

@@ -4,6 +4,7 @@ import { MonthlyGoalEditor } from "@/components/funnel/MonthlyGoalEditor";
 import { FunnelVisualization } from "@/components/funnel/FunnelVisualization";
 import { MonthComparison } from "@/components/funnel/MonthComparison";
 import { TopProducts } from "@/components/funnel/TopProducts";
+import { ProjectionSection } from "@/components/funnel/ProjectionSection";
 import { ShoppingCart, TrendingUp } from "lucide-react";
 
 export const revalidate = 60; // Cache for 60 seconds
@@ -30,6 +31,21 @@ export default async function FunnelPage(props: Props) {
                     currentRevenueGoal={data.currentMonth.goal?.revenue_goal || 0}
                     currentTransactionsGoal={data.currentMonth.goal?.transactions_goal || 0}
                     currentAdBudgetGoal={data.currentMonth.goal?.ad_budget_goal || 0}
+                />
+
+                {/* Projection Section - Shows after user sets goals */}
+                <ProjectionSection
+                    currentMonthRevenue={data.currentMonth.revenue}
+                    currentMonthTransactions={data.currentMonth.transactions}
+                    currentMonthInvestment={data.currentMonth.investment}
+                    revenueGoal={data.currentMonth.goal?.revenue_goal || 0}
+                    transactionsGoal={data.currentMonth.goal?.transactions_goal || 0}
+                    adBudgetGoal={data.currentMonth.goal?.ad_budget_goal || 0}
+                    historicalConversionRate={data.historical.conversionRate}
+                    historicalAvgTicket={data.historical.avgTicket}
+                    historicalROAS={data.historical.roas}
+                    daysElapsed={data.currentMonth.daysElapsed}
+                    daysInMonth={data.currentMonth.daysInMonth}
                 />
 
                 {/* Funnel Visualization */}
@@ -86,3 +102,4 @@ export default async function FunnelPage(props: Props) {
         </>
     );
 }
+

@@ -73,26 +73,33 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     console.log(`[Dashboard] 💰 Revenue: R$ ${totalRevenue.toFixed(2)}`);
     console.log(`[Dashboard] 💸 Investment: R$ ${totalInvestment.toFixed(2)} (Google: ${googleAdsCost.toFixed(2)}, Meta: ${metaAdsCost.toFixed(2)})`);
 
-    // 5. Calculate New Revenue vs Retention
-    // Wake orders have customer data, use those for segmentation
-    // TEMPORARILY USING ESTIMATION ONLY - Historical fetch was timing out
-    console.log(`[Dashboard] ⚠️ Using estimation for segmentation (30% new / 70% retention)`);
+    // 5. Calculate New Revenue vs Retention with REAL DATA
+    // Fetch historical orders (12 months before the selected period) to determine new vs returning customers
+    const historicalStartDate = format(subDays(currentStart, 365), "yyyy-MM-dd");
+    const historicalEndDate = format(subDays(currentStart, 1), "yyyy-MM-dd");
 
-    const newUserRatio = 0.30; // Industry standard
-    const estimatedNewRevenue = totalRevenue * newUserRatio;
-    const estimatedRetentionRevenue = totalRevenue * (1 - newUserRatio);
+    const historicalCacheKey = `historical:v2:${historicalStartDate}:${historicalEndDate}`;
 
-    const segmentation = {
-        newRevenue: estimatedNewRevenue,
-        retentionRevenue: estimatedRetentionRevenue,
-        newCustomersCount: Math.round(totalOrders * newUserRatio),
-        returningCustomersCount: Math.round(totalOrders * (1 - newUserRatio))
-    };
+    console.log(`[Dashboard] 📊 Fetching historical data: ${historicalStartDate} to ${historicalEndDate}`);
 
-    console.log(`[Dashboard] 👥 New Customers: ${segmentation.newCustomersCount}`);
-    console.log(`[Dashboard] 🔄 Returning Customers: ${segmentation.returningCustomersCount}`);
-    console.log(`[Dashboard] 💵 New Revenue: R$ ${segmentation.newRevenue.toFixed(2)}`);
-    console.log(`[Dashboard] 💵 Retention Revenue: R$ ${segmentation.retentionRevenue.toFixed(2)}`);
+    // Fetch historical orders efficiently (only need customer IDs, not full details)
+    const historicalData = await withCache(historicalCacheKey, async () => {
+        const [historicalTiny, historicalWake] = await Promise.all([
+            getTinyOrders(historicalStartDate, historicalEndDate),
+            getWakeOrders(historicalStartDate, historicalEndDate)
+        ]);
+        return mergeOrders(historicalTiny || [], historicalWake || []);
+    }, CACHE_TTL.LONG);
+
+    console.log(`[Dashboard] 📦 Historical orders found: ${historicalData.length}`);
+
+    // Calculate real segmentation using historical data
+    const segmentation = calculateRevenueSegmentation(allOrders, historicalData);
+
+    console.log(`[Dashboard] 👥 New Customers (Real): ${segmentation.newCustomersCount}`);
+    console.log(`[Dashboard] 🔄 Returning Customers (Real): ${segmentation.returningCustomersCount}`);
+    console.log(`[Dashboard] 💵 New Revenue (Real): R$ ${segmentation.newRevenue.toFixed(2)}`);
+    console.log(`[Dashboard] 💵 Retention Revenue (Real): R$ ${segmentation.retentionRevenue.toFixed(2)}`);
 
     // 6. Derived KPIs
     const ticketAvg = totalOrders > 0 ? totalRevenue / totalOrders : 0;

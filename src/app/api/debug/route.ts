@@ -60,7 +60,8 @@ export async function GET(request: Request) {
             customerId: getCustomerId(o),
             customerName: getCustomerName(o),
             date: o.date || o.orderDate,
-            hasCustomerData: !getCustomerId(o).startsWith('unknown_')
+            hasCustomerData: !getCustomerId(o).startsWith('unknown_'),
+            raw: o.raw || o // Include raw data for debugging
         }));
 
         // Calculate transactions from GA4

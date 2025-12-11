@@ -172,7 +172,7 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     let allOrders: TinyOrderBasic[] = [];
     let page = 1;
     let hasMore = true;
-    const maxPages = 10; // Increased to get more orders for 12-month period
+    const maxPages = 50; // Increased to capture Black Friday volume
 
     // Convert dates to Tiny format (dd/MM/yyyy)
     let tinyStartDate = "";
@@ -203,19 +203,49 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
 
         try {
             console.log(`[Tiny API] 🔍 Fetching page ${page}...`);
-            const res = await fetch(url, {
-                next: { revalidate: 0 },
-                cache: 'no-store'
-            });
 
-            if (!res.ok) {
-                console.error(`[Tiny API] ❌ HTTP Error: ${res.status}`);
+            let retries = 0;
+            const maxRetries = 3;
+            let data: any = null;
+
+            while (retries <= maxRetries) {
+                const res = await fetch(url, {
+                    next: { revalidate: 0 },
+                    cache: 'no-store'
+                });
+
+                if (!res.ok) {
+                    console.error(`[Tiny API] ❌ HTTP Error: ${res.status}`);
+                    break;
+                }
+
+                data = await res.json();
+
+                // Check for rate limit error
+                const isRateLimited = data.retorno?.codigo_erro === 6;
+
+                if (isRateLimited && retries < maxRetries) {
+                    const waitTime = Math.pow(2, retries) * 2000; // 2s, 4s, 8s
+                    console.log(`[Tiny API] ⏸️  Rate limited, waiting ${waitTime}ms before retry ${retries + 1}/${maxRetries}...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                    retries++;
+                    continue;
+                }
+
+                break; // Success or non-rate-limit error
+            }
+
+            if (!data) {
+                console.error(`[Tiny API] ❌ No data received after retries`);
                 break;
             }
 
-            const data = await res.json();
-
+            // DETAILED LOGGING for empty responses
             if (data.retorno?.status_processamento === 3 || !data.retorno?.pedidos) {
+                console.log(`[Tiny API] ⚠️ Empty response for ${tinyStartDate} to ${tinyEndDate}`);
+                console.log(`[Tiny API] 📋 Status: ${data.retorno?.status_processamento}`);
+                console.log(`[Tiny API] 📋 Message: ${data.retorno?.status || data.retorno?.codigo_erro || 'No message'}`);
+                console.log(`[Tiny API] 📋 Full response:`, JSON.stringify(data).substring(0, 500));
                 hasMore = false;
             } else {
                 const orders = data.retorno.pedidos;

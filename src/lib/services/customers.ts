@@ -70,6 +70,23 @@ export function getCustomerId(order: any): string {
         return clienteId.toString();
     }
 
+    // FALLBACK: Use customer name if available (normalized)
+    const customerName =
+        order.customerName ||
+        order.nome ||
+        order.cliente_nome ||
+        order.customer_name ||
+        order.cliente?.nome ||
+        order.raw?.nome ||
+        order.raw?.cliente?.nome;
+
+    if (customerName && customerName !== 'Cliente' && customerName.length > 3) {
+        // Normalize name: lowercase, remove accents, trim
+        const normalized = customerName.toLowerCase().trim()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return `name_${normalized}`;
+    }
+
     // Last resort: use customerId even if it's a fallback
     if (order.customerId) {
         return order.customerId;

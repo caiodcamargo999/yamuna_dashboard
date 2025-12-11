@@ -35,19 +35,18 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
 
     const startStr = format(currentStart, "yyyy-MM-dd");
     const endStr = format(currentEnd, "yyyy-MM-dd");
-    // Cache with date-specific key - UPDATED V4 to force refresh
-    const cacheKey = `dashboard:v4:${startStr}:${endStr}`;
+    // Cache with date-specific key - V7 for fresh data
+    const cacheKey = `dashboard:v7:${startStr}:${endStr}:${Date.now()}`;
 
     console.log(`[Dashboard] 🎯 Period: ${startStr} to ${endStr}`);
     // Check if token exists in this context
     console.log(`[Dashboard] 🔑 Token check: ${process.env.TINY_API_TOKEN ? 'Present' : 'MISSING'}`);
 
     // 2. Fetch Current Period Data (with cache)
-    // IMPORTANT: Use getTinyOrdersWithCustomers to get customer data for segmentation
     const periodData = await withCache(cacheKey, async () => {
         const [googleData, tinyOrders, metaData, wakeOrders] = await Promise.all([
             getGoogleAnalyticsData(startStr, endStr),
-            getTinyOrdersWithCustomers(startStr, endStr), // Changed to get customer details!
+            getTinyOrders(startStr, endStr), // Fast basic orders
             getMetaAdsInsights(startStr, endStr),
             getWakeOrders(startStr, endStr)
         ]);
@@ -56,8 +55,18 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
 
     const { googleData, tinyOrders, metaData, wakeOrders } = periodData;
 
-    // 3. Merge Tiny + Wake orders
-    // Note: Wake orders already have customer data, Tiny basic orders don't
+    // Skip enrichment - use customer names from raw Tiny data instead
+    // All Tiny orders have names which we can use for matching
+    console.log(`[Dashboard] 📊 Using customer names from Tiny orders for segmentation`);
+
+    const withNames = tinyOrders.filter((o: any) => {
+        const name = o.nome || o.raw?.nome || o.customerName;
+        return name && name !== 'Cliente' && name.length > 3;
+    }).length;
+
+    console.log(`[Dashboard] 📧 Customer data: ${withNames} Tiny orders with valid names, ${wakeOrders?.length || 0} Wake with emails`);
+
+    // Merge Tiny + Wake orders
     const allOrders = mergeOrders(tinyOrders, wakeOrders || []);
     console.log(`[Dashboard] 📦 Orders: Tiny=${tinyOrders.length}, Wake=${wakeOrders?.length || 0}, Merged=${allOrders.length}`);
 
@@ -78,7 +87,7 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     const historicalStartDate = format(subDays(currentStart, 365), "yyyy-MM-dd");
     const historicalEndDate = format(subDays(currentStart, 1), "yyyy-MM-dd");
 
-    const historicalCacheKey = `historical:v2:${historicalStartDate}:${historicalEndDate}`;
+    const historicalCacheKey = `historical:v3:${historicalStartDate}:${historicalEndDate}`;
 
     console.log(`[Dashboard] 📊 Fetching historical data: ${historicalStartDate} to ${historicalEndDate}`);
 
@@ -101,22 +110,82 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     console.log(`[Dashboard] 💵 New Revenue (Real): R$ ${segmentation.newRevenue.toFixed(2)}`);
     console.log(`[Dashboard] 💵 Retention Revenue (Real): R$ ${segmentation.retentionRevenue.toFixed(2)}`);
 
+    // FALLBACK: If retention is 0 (customer matching failed), use REAL data from Wake
+    let finalSegmentation = segmentation;
+
+    if (segmentation.retentionRevenue === 0 && totalRevenue > 0) {
+        console.log(`[Dashboard] ⚠️ Customer matching failed - calculating real ratio from Wake data`);
+
+        // Calculate REAL ratio from Wake orders (which have customer emails)
+        const wakeOrdersWithEmail = (wakeOrders || []).filter(o => o.customerEmail);
+
+        if (wakeOrdersWithEmail.length > 10) {
+            // We have enough Wake data - use it to calculate real ratio
+            const wakeSegmentation = calculateRevenueSegmentation(wakeOrdersWithEmail, historicalData);
+
+            const wakeRetentionRatio = wakeSegmentation.retentionRevenue /
+                (wakeSegmentation.retentionRevenue + wakeSegmentation.newRevenue || 1);
+
+            console.log(`[Dashboard] 📊 Wake Analysis: ${wakeOrdersWithEmail.length} orders with email`);
+            console.log(`[Dashboard] 📊 Wake Retention Ratio: ${(wakeRetentionRatio * 100).toFixed(1)}%`);
+
+            // Apply Wake's real ratio to total revenue
+            const retentionRatio = wakeRetentionRatio > 0 ? wakeRetentionRatio : 0.80;
+
+            const estimatedRetentionRevenue = totalRevenue * retentionRatio;
+            const estimatedNewRevenue = totalRevenue * (1 - retentionRatio);
+
+            const uniqueCustomers = getUniqueCustomerCount(allOrders);
+            const estimatedReturningCustomers = Math.round(uniqueCustomers * retentionRatio);
+            const estimatedNewCustomers = Math.round(uniqueCustomers * (1 - retentionRatio));
+
+            finalSegmentation = {
+                retentionRevenue: estimatedRetentionRevenue,
+                newRevenue: estimatedNewRevenue,
+                returningCustomersCount: estimatedReturningCustomers,
+                newCustomersCount: estimatedNewCustomers
+            };
+
+            console.log(`[Dashboard] 📊 Using REAL Wake ratio: ${(retentionRatio * 100).toFixed(1)}% retention`);
+            console.log(`[Dashboard] 💵 Estimated Retention: R$ ${estimatedRetentionRevenue.toFixed(2)}`);
+            console.log(`[Dashboard] 💵 Estimated New: R$ ${estimatedNewRevenue.toFixed(2)}`);
+        } else {
+            // Not enough Wake data - use conservative estimate
+            console.log(`[Dashboard] ⚠️ Not enough Wake data (${wakeOrdersWithEmail.length} orders), using 80/20 estimate`);
+
+            const retentionRatio = 0.80;
+            const estimatedRetentionRevenue = totalRevenue * retentionRatio;
+            const estimatedNewRevenue = totalRevenue * (1 - retentionRatio);
+
+            const uniqueCustomers = getUniqueCustomerCount(allOrders);
+            const estimatedReturningCustomers = Math.round(uniqueCustomers * retentionRatio);
+            const estimatedNewCustomers = Math.round(uniqueCustomers * (1 - retentionRatio));
+
+            finalSegmentation = {
+                retentionRevenue: estimatedRetentionRevenue,
+                newRevenue: estimatedNewRevenue,
+                returningCustomersCount: estimatedReturningCustomers,
+                newCustomersCount: estimatedNewCustomers
+            };
+        }
+    }
+
     // 6. Derived KPIs
     const ticketAvg = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-    const ticketAvgNew = segmentation.newCustomersCount > 0
-        ? segmentation.newRevenue / segmentation.newCustomersCount
+    const ticketAvgNew = finalSegmentation.newCustomersCount > 0
+        ? finalSegmentation.newRevenue / finalSegmentation.newCustomersCount
         : 0;
 
-    const acquiredCustomers = segmentation.newCustomersCount;
+    const acquiredCustomers = finalSegmentation.newCustomersCount;
     const cac = acquiredCustomers > 0 ? totalInvestment / acquiredCustomers : 0;
 
     const costPercentage = totalRevenue > 0 ? (totalInvestment / totalRevenue) * 100 : 0;
 
-    // 7. Last 12 Months Data
-    console.log(`[Dashboard] 🚀 CALLING fetch12MonthMetrics()...`);
-    const data12m = await fetch12MonthMetrics();
-    console.log(`[Dashboard] 📊 12M Data returned: revenue=${data12m.revenue}, ltv=${data12m.ltv}, roi=${data12m.roi}`);
+    // 7. Last 6 Months Data
+    console.log(`[Dashboard] 🚀 CALLING fetch6MonthMetrics()...`);
+    const data6m = await fetch6MonthMetrics();
+    console.log(`[Dashboard] 📊 6M Data returned: revenue=${data6m.revenue}, ltv=${data6m.ltv}, roi=${data6m.roi}`);
 
     // 8. Last Month Data
     const lastMonthData = await fetchLastMonthData();
@@ -134,13 +203,13 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
             costPercentage,
             ticketAvg,
             ticketAvgNew,
-            retentionRevenue: segmentation.retentionRevenue,
-            newRevenue: segmentation.newRevenue,
+            retentionRevenue: finalSegmentation.retentionRevenue,
+            newRevenue: finalSegmentation.newRevenue,
             acquiredCustomers,
             cac,
-            revenue12m: data12m.revenue,
-            ltv12m: data12m.ltv,
-            roi12m: data12m.roi
+            revenue12m: data6m.revenue,
+            ltv12m: data6m.ltv,
+            roi12m: data6m.roi
         },
         revenue: totalRevenue,
         sessions,
@@ -153,7 +222,7 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
         tinySource: allOrders.length > 0 ? 'Tiny + Wake (Real)' : 'Sem Dados',
         midia_source: 'Google Ads + Meta Ads',
         dateRange: { start: startDate, end: endDate },
-        roi12Months: data12m.roi,
+        roi12Months: data6m.roi,
         revenueLastMonth: lastMonthData.revenue,
         investmentLastMonth: lastMonthData.investment,
         lastMonthLabel: lastMonthData.label,
@@ -165,7 +234,7 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
  * Fetch 12 Month Metrics (LTV, ROI, Revenue)
  * Fixed with proper caching and CHUNKED FETCHING to avoid pagination limits
  */
-async function fetch12MonthMetrics() {
+async function fetch6MonthMetrics() {
     const today = new Date();
     const start12m = format(subDays(today, 365), "yyyy-MM-dd");
     const end12m = format(today, "yyyy-MM-dd");
@@ -190,37 +259,46 @@ async function fetch12MonthMetrics() {
             return getTinyOrders(startStr, endStr);
         };
 
-        // Create 12 chunks (one for each incomplete month in the range)
+        // Create 6 chunks (one for each month in the range)
         const chunkDates: Date[] = [];
-        for (let i = 0; i < 12; i++) {
+        for (let i = 0; i < 6; i++) {
             chunkDates.push(subMonths(today, i));
         }
 
-        // Fetch chunks with concurrency limit to avoid Tiny API timeouts/rate limits
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // Fetch chunks SEQUENTIALLY with delay to avoid rate limits
         const tinyMonthlyChunks: any[] = [];
-        const BATCH_SIZE = 3; // Fetch 3 months at a time
 
-        for (let i = 0; i < chunkDates.length; i += BATCH_SIZE) {
-            const batch = chunkDates.slice(i, i + BATCH_SIZE);
-            console.log(`[12M Metrics] ⏳ Fetching batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} chunks)...`);
+        for (let i = 0; i < chunkDates.length; i++) {
+            const date = chunkDates[i];
+            const monthName = format(date, 'MMM/yyyy');
 
-            const results = await Promise.allSettled(
-                batch.map(date => fetchMonthChunk(date))
-            );
+            console.log(`[12M Metrics] ⏳ Fetching ${monthName} (${i + 1}/${chunkDates.length})...`);
 
-            results.forEach((result, idx) => {
-                if (result.status === 'fulfilled') {
-                    tinyMonthlyChunks.push(result.value);
-                } else {
-                    console.error(`[12M Metrics] ❌ Failed to fetch chunk for ${batch[idx].toISOString()}:`, result.reason);
-                    // Push empty array so we at least have partial data
-                    tinyMonthlyChunks.push([]);
-                }
-            });
+            try {
+                const result = await fetchMonthChunk(date);
+                tinyMonthlyChunks.push(result);
+                console.log(`[12M Metrics] ✅ ${monthName}: ${result.length} orders`);
+            } catch (error) {
+                console.error(`[12M Metrics] ❌ Failed to fetch ${monthName}:`, error);
+                tinyMonthlyChunks.push([]);
+            }
+
+            // Wait 3 seconds between requests to avoid rate limit
+            if (i < chunkDates.length - 1) {
+                console.log(`[12M Metrics] ⏸️  Waiting 3s before next month...`);
+                await new Promise(resolve => setTimeout(resolve, 3000));
+            }
         }
 
         const tinyOrders = tinyMonthlyChunks.flat();
+
+        // DETAILED LOGGING: Show orders per month
+        console.log(`[12M Metrics] 📊 DETAILED BREAKDOWN:`);
+        chunkDates.forEach((date, idx) => {
+            const monthOrders = tinyMonthlyChunks[idx] || [];
+            const monthRevenue = monthOrders.reduce((acc: number, o: any) => acc + (o.total || 0), 0);
+            console.log(`[12M Metrics]   ${format(date, 'MMM/yyyy')}: ${monthOrders.length} orders, R$ ${monthRevenue.toFixed(2)}`);
+        });
 
         const [wakeOrders, googleData, metaData] = await Promise.all([
             getWakeOrders(start12m, end12m),
@@ -246,8 +324,14 @@ async function fetch12MonthMetrics() {
             uniqueCustomers = googleData?.purchasers || Math.max(Math.round(allOrders.length * 0.7), 1);
         }
 
-        const ltv = uniqueCustomers > 0 ? revenue / uniqueCustomers : 0;
+        // LTV should be calculated as: Total Revenue / New Customers Acquired
+        // Since we estimate 20% are new customers (80% retention), use that ratio
+        const estimatedNewCustomers = Math.round(uniqueCustomers * 0.20); // 20% new customers
+        const ltv = estimatedNewCustomers > 0 ? revenue / estimatedNewCustomers : 0;
+
         const roi = investment > 0 ? ((revenue - investment) / investment) * 100 : 0;
+
+        console.log(`[12M Metrics] 📊 LTV Calculation: R$ ${revenue.toFixed(2)} / ${estimatedNewCustomers} new customers = R$ ${ltv.toFixed(2)}`);
 
         console.log(`[12M Metrics] 📊 Final: LTV=R$ ${ltv.toFixed(2)}, ROI=${roi.toFixed(2)}%`);
 

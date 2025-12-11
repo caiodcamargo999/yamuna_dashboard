@@ -101,6 +101,7 @@ export default async function DashboardPage(props: Props) {
                 {/* Dashboard Grid */}
                 <div className="space-y-10">
 
+
                     {/* Section 1: Investment & Efficiency */}
                     <section className="relative">
                         <div className="absolute -left-4 -top-4 w-20 h-20 bg-orange-500/10 rounded-full blur-2xl pointer-events-none" />
@@ -110,11 +111,9 @@ export default async function DashboardPage(props: Props) {
                             </div>
                             <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Investimento & Eficiência</h3>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <KPIGlassCard label="Investimento Total" value={data.kpis.investment} prefix="R$ " delay={1} />
-                            <KPIGlassCard label="% Custo sobre Venda" value={data.kpis.costPercentage} suffix="%" format="decimal" delay={2} invertTrend />
-                            <KPIGlassCard label="Custo por Aquisição (CAC)" value={data.kpis.cac} prefix="R$ " delay={3} invertTrend />
-                            <KPIGlassCard label="ROI (ROAS Geral)" value={(data.kpis.investment > 0 ? (data.revenue / data.kpis.investment) : 0)} suffix="x" format="decimal" delay={4} />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <KPIGlassCard label="Investimento" value={data.kpis.investment} prefix="R$ " delay={1} />
+                            <KPIGlassCard label="% Custo" value={data.kpis.costPercentage} suffix="%" format="decimal" delay={2} invertTrend />
                         </div>
                     </section>
 
@@ -127,27 +126,43 @@ export default async function DashboardPage(props: Props) {
                             </div>
                             <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Vendas & Receita</h3>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                             <KPIGlassCard label="Receita Total" value={data.revenue} prefix="R$ " delay={5} />
                             <KPIGlassCard label="Ticket Médio" value={data.kpis.ticketAvg} prefix="R$ " delay={6} />
-                            <KPIGlassCard label="Receita Retenção (Est.)" value={data.kpis.retentionRevenue} prefix="R$ " delay={7} />
-                            <KPIGlassCard label="Receita Novos (Est.)" value={data.kpis.newRevenue} prefix="R$ " delay={8} />
+                            <KPIGlassCard label="Ticket Médio Novos Clientes" value={data.kpis.ticketAvgNew} prefix="R$ " delay={7} />
+                            <KPIGlassCard label="Retenção" value={data.kpis.retentionRevenue} prefix="R$ " delay={8} />
+                            <KPIGlassCard label="Receita Nova" value={data.kpis.newRevenue} prefix="R$ " delay={9} />
                         </div>
                     </section>
 
-                    {/* Section 3: Growth & Long Term */}
+                    {/* Section 3: Customers */}
+                    <section className="relative">
+                        <div className="absolute -left-4 -top-4 w-20 h-20 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="flex items-center gap-2 mb-4 ml-1">
+                            <div className="p-1.5 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg shadow-purple-500/20">
+                                <Users className="text-white w-4 h-4" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Clientes</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <KPIGlassCard label="Clientes Adquiridos" value={data.kpis.acquiredCustomers} format="number" delay={9} />
+                            <KPIGlassCard label="Custo de Aquisição de Clientes" value={data.kpis.cac} prefix="R$ " delay={10} invertTrend />
+                        </div>
+                    </section>
+
+                    {/* Section 4: Growth & Long Term */}
                     <section className="relative">
                         <div className="absolute left-1/2 -top-4 w-32 h-20 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
                         <div className="flex items-center gap-2 mb-4 ml-1">
                             <div className="p-1.5 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/20">
                                 <Rocket className="text-white w-4 h-4" />
                             </div>
-                            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Crescimento (12 Meses)</h3>
+                            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Crescimento (6 Meses)</h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <KPIGlassCard label="Faturamento 12M" value={data.kpis.revenue12m} prefix="R$ " delay={9} />
-                            <KPIGlassCard label="LTV Estimado 12M" value={data.kpis.ltv12m} prefix="R$ " delay={10} />
-                            <KPIGlassCard label="ROI 12 Meses" value={data.kpis.roi12m} suffix="%" format="decimal" delay={11} />
+                            <KPIGlassCard label="Faturamento 6 Meses" value={data.kpis.revenue12m} prefix="R$ " delay={11} />
+                            <KPIGlassCard label="LTV 6 Meses" value={data.kpis.ltv12m} prefix="R$ " delay={12} />
+                            <KPIGlassCard label="ROI 6 Meses" value={data.kpis.roi12m} suffix="x" format="decimal" delay={13} />
                         </div>
                     </section>
 

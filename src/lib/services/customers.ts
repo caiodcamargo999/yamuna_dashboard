@@ -35,20 +35,34 @@ export interface RFMScore {
 
 /**
  * Extract customer ID from order (handles multiple formats)
- * Priority: explicit customerId > cliente data > email > fallback
+ * Priority: CPF/CNPJ (unique) > email > explicit customerId > name (fallback)
  */
 export function getCustomerId(order: any): string {
-    // First check if it's a normalized order (Wake or enriched Tiny)
-    if (order.customerId && !order.customerId.startsWith('unknown_') && !order.customerId.startsWith('wake_customer_')) {
-        return order.customerId;
+    // PRIORITY 1: CPF/CNPJ (Most reliable - unique per customer)
+    const cpfCnpj =
+        order.customerCpfCnpj ||
+        order.cpf_cnpj ||
+        order.cnpj ||
+        order.cpf ||
+        order.cliente?.cpf_cnpj ||
+        order.cliente?.cnpj ||
+        order.raw?.cliente?.cpf_cnpj ||
+        order.raw?.cliente?.cnpj;
+
+    if (cpfCnpj) {
+        // Normalize CPF/CNPJ: remove all non-digits
+        const normalized = cpfCnpj.toString().replace(/\D/g, '');
+        if (normalized.length >= 11) { // Valid CPF (11) or CNPJ (14)
+            return `cpf_${normalized}`;
+        }
     }
 
-    // Check for email first (most reliable identifier)
+    // PRIORITY 2: Email (Reliable when available)
     if (order.customerEmail && order.customerEmail.includes('@')) {
         return order.customerEmail.toLowerCase();
     }
 
-    // Try legacy field names
+    // Try legacy email fields
     const email =
         order.email ||
         order.cliente?.email ||
@@ -56,6 +70,11 @@ export function getCustomerId(order: any): string {
 
     if (email && email.includes('@')) {
         return email.toLowerCase();
+    }
+
+    // PRIORITY 3: Explicit customer ID (if not a fallback)
+    if (order.customerId && !order.customerId.startsWith('unknown_') && !order.customerId.startsWith('wake_customer_')) {
+        return order.customerId;
     }
 
     // Try other ID fields
@@ -70,7 +89,7 @@ export function getCustomerId(order: any): string {
         return clienteId.toString();
     }
 
-    // FALLBACK: Use customer name if available (normalized)
+    // PRIORITY 4: Customer name (Last resort - improve normalization)
     const customerName =
         order.customerName ||
         order.nome ||
@@ -81,9 +100,11 @@ export function getCustomerId(order: any): string {
         order.raw?.cliente?.nome;
 
     if (customerName && customerName !== 'Cliente' && customerName.length > 3) {
-        // Normalize name: lowercase, remove accents, trim
+        // IMPROVED normalization: remove accents, lowercase, trim, remove punctuation, normalize spaces
         const normalized = customerName.toLowerCase().trim()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
+            .replace(/[^\w\s]/g, '') // Remove punctuation
+            .replace(/\s+/g, ' '); // Normalize multiple spaces to single space
         return `name_${normalized}`;
     }
 
@@ -181,10 +202,6 @@ export function countFirstTimeBuyers(
     return newCustomerIds.size;
 }
 
-/**
- * Calculate revenue segmentation (New vs Retention)
- * According to PDF: Receita_Nova = SUM(receita WHERE cliente_primeira_compra == período)
- */
 export function calculateRevenueSegmentation(
     currentPeriodOrders: any[],
     historicalOrders: any[]
@@ -201,9 +218,21 @@ export function calculateRevenueSegmentation(
     const newCustomerIds = new Set<string>();
     const returningCustomerIds = new Set<string>();
 
+    // Track identification methods for debugging
+    let cpfCnpjCount = 0;
+    let emailCount = 0;
+    let nameCount = 0;
+    let unknownCount = 0;
+
     currentPeriodOrders.forEach(order => {
         const customerId = getCustomerId(order);
         const orderValue = order.total || 0;
+
+        // Track identification method
+        if (customerId.startsWith('cpf_')) cpfCnpjCount++;
+        else if (customerId.includes('@')) emailCount++;
+        else if (customerId.startsWith('name_')) nameCount++;
+        else if (customerId.startsWith('unknown_')) unknownCount++;
 
         if (existingCustomers.has(customerId)) {
             // Returning customer
@@ -215,6 +244,12 @@ export function calculateRevenueSegmentation(
             newCustomerIds.add(customerId);
         }
     });
+
+    console.log(`[Customer ID] 🔍 Identification breakdown for ${currentPeriodOrders.length} orders:`);
+    console.log(`[Customer ID]   CPF/CNPJ: ${cpfCnpjCount} (${((cpfCnpjCount / currentPeriodOrders.length) * 100).toFixed(1)}%)`);
+    console.log(`[Customer ID]   Email: ${emailCount} (${((emailCount / currentPeriodOrders.length) * 100).toFixed(1)}%)`);
+    console.log(`[Customer ID]   Name: ${nameCount} (${((nameCount / currentPeriodOrders.length) * 100).toFixed(1)}%)`);
+    console.log(`[Customer ID]   Unknown: ${unknownCount} (${((unknownCount / currentPeriodOrders.length) * 100).toFixed(1)}%)`);
 
     return {
         newRevenue,

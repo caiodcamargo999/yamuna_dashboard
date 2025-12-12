@@ -35,8 +35,8 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
 
     const startStr = format(currentStart, "yyyy-MM-dd");
     const endStr = format(currentEnd, "yyyy-MM-dd");
-    // Cache with date-specific key - V7 for fresh data
-    const cacheKey = `dashboard:v7:${startStr}:${endStr}:${Date.now()}`;
+    // Cache with date-specific key - V10 with FIXED CPF/CNPJ extraction from pedido object
+    const cacheKey = `dashboard:v10:${startStr}:${endStr}`;
 
     console.log(`[Dashboard] 🎯 Period: ${startStr} to ${endStr}`);
     // Check if token exists in this context
@@ -103,6 +103,10 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     console.log(`[Dashboard] 📦 Historical orders found: ${historicalData.length}`);
 
     // Calculate real segmentation using historical data
+    console.log(`[Dashboard] 🔍 STARTING calculateRevenueSegmentation with:`);
+    console.log(`[Dashboard]   Current period orders: ${allOrders.length}`);
+    console.log(`[Dashboard]   Historical orders: ${historicalData.length}`);
+
     const segmentation = calculateRevenueSegmentation(allOrders, historicalData);
 
     console.log(`[Dashboard] 👥 New Customers (Real): ${segmentation.newCustomersCount}`);
@@ -182,16 +186,7 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
 
     const costPercentage = totalRevenue > 0 ? (totalInvestment / totalRevenue) * 100 : 0;
 
-    // 7. Last 6 Months Data
-    console.log(`[Dashboard] 🚀 CALLING fetch6MonthMetrics()...`);
-    const data6m = await fetch6MonthMetrics();
-    console.log(`[Dashboard] 📊 6M Data returned: revenue=${data6m.revenue}, ltv=${data6m.ltv}, roi=${data6m.roi}`);
-
-    // 8. Last Month Data
-    const lastMonthData = await fetchLastMonthData();
-    console.log(`[Dashboard] 📊 LastMonth Data: revenue=${lastMonthData.revenue}`);
-
-    // 9. Funnel data from GA4
+    // 7. Funnel data from GA4
     const sessions = googleData?.sessions || 0;
     const addToCarts = googleData?.addToCarts || 0;
     const checkouts = googleData?.checkouts || 0;
@@ -207,9 +202,10 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
             newRevenue: finalSegmentation.newRevenue,
             acquiredCustomers,
             cac,
-            revenue12m: data6m.revenue,
-            ltv12m: data6m.ltv,
-            roi12m: data6m.roi
+            // 6-month metrics removed - loaded separately via Suspense
+            revenue12m: 0,
+            ltv12m: 0,
+            roi12m: 0
         },
         revenue: totalRevenue,
         sessions,
@@ -222,19 +218,20 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
         tinySource: allOrders.length > 0 ? 'Tiny + Wake (Real)' : 'Sem Dados',
         midia_source: 'Google Ads + Meta Ads',
         dateRange: { start: startDate, end: endDate },
-        roi12Months: data6m.roi,
-        revenueLastMonth: lastMonthData.revenue,
-        investmentLastMonth: lastMonthData.investment,
-        lastMonthLabel: lastMonthData.label,
+        // Last month data removed - loaded separately via Suspense
+        roi12Months: 0,
+        revenueLastMonth: 0,
+        investmentLastMonth: 0,
+        lastMonthLabel: '',
         source: 'Tiny + Wake + GA4 + Meta',
     };
 }
 
 /**
- * Fetch 12 Month Metrics (LTV, ROI, Revenue)
+ * Fetch 6 Month Metrics (LTV, ROI, Revenue)
  * Fixed with proper caching and CHUNKED FETCHING to avoid pagination limits
  */
-async function fetch6MonthMetrics() {
+export async function fetch6MonthMetrics() {
     const today = new Date();
     const start12m = format(subDays(today, 365), "yyyy-MM-dd");
     const end12m = format(today, "yyyy-MM-dd");
@@ -283,10 +280,10 @@ async function fetch6MonthMetrics() {
                 tinyMonthlyChunks.push([]);
             }
 
-            // Wait 3 seconds between requests to avoid rate limit
+            // Wait 500ms between requests to avoid rate limit (optimized)
             if (i < chunkDates.length - 1) {
-                console.log(`[12M Metrics] ⏸️  Waiting 3s before next month...`);
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                console.log(`[12M Metrics] ⏸️  Waiting 500ms before next month...`);
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
 
@@ -345,7 +342,7 @@ async function fetch6MonthMetrics() {
  * Fetch Last Month Data
  * Fixed with proper caching
  */
-async function fetchLastMonthData() {
+export async function fetchLastMonthData() {
     const today = new Date();
     const lastMonthDate = subMonths(today, 1);
     const startLastMonth = format(startOfMonth(lastMonthDate), "yyyy-MM-dd");

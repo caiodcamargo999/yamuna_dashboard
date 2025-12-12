@@ -20,6 +20,7 @@ interface TinyOrderDetail {
     customerName: string;
     customerEmail: string;
     customerPhone: string;
+    customerCpfCnpj?: string; // CPF/CNPJ for accurate customer identification
     raw?: any;
 }
 
@@ -89,6 +90,7 @@ async function getTinyOrderDetail(orderId: string): Promise<TinyOrderDetail | nu
             customerName: cliente.nome || "Cliente",
             customerEmail: cliente.email || "",
             customerPhone: cliente.fone || "",
+            customerCpfCnpj: cliente.cpf_cnpj || cliente.cnpj || "", // Extract CPF/CNPJ
             raw: pedido
         };
 
@@ -283,6 +285,10 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
             date: pedido.data_pedido || "",
             total: total,
             status: pedido.situacao || "",
+            // In basic API, customer data is directly in pedido, not pedido.cliente
+            customerCpfCnpj: pedido.cpf_cnpj || pedido.cnpj || "",
+            customerName: pedido.nome || pedido.nome_cliente || "",
+            customerEmail: pedido.email || "",
             raw: pedido
         };
     });
@@ -296,6 +302,18 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     // NOTE: Disabled local date filtering as it was causing issues with 12-month data
     // The Tiny API should filter by `dataInicial` and `dataFinal` parameters
     // If orders are outside range, they should still count towards revenue
+
+    // DEBUG: Check if CPF/CNPJ is being extracted
+    const withCpfCnpj = mappedOrders.filter(o => o.customerCpfCnpj && o.customerCpfCnpj.length >= 11).length;
+    console.log(`[Tiny API] 🔍 CPF/CNPJ found in ${withCpfCnpj} of ${mappedOrders.length} orders (${((withCpfCnpj / mappedOrders.length) * 100).toFixed(1)}%)`);
+    if (mappedOrders.length > 0 && withCpfCnpj > 0) {
+        const sample = mappedOrders.find(o => o.customerCpfCnpj);
+        console.log(`[Tiny API] 📋 Sample order with CPF/CNPJ:`, {
+            id: sample?.id,
+            name: sample?.customerName,
+            cpfCnpj: sample?.customerCpfCnpj ? `${sample.customerCpfCnpj.substring(0, 3)}***` : 'none'
+        });
+    }
 
     console.log(`[Tiny API] ✅ Returning ${mappedOrders.length} orders (no local date filter)`);
 

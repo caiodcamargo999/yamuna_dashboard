@@ -186,7 +186,16 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
 
     const costPercentage = totalRevenue > 0 ? (totalInvestment / totalRevenue) * 100 : 0;
 
-    // 7. Funnel data from GA4
+    // 7. Last 6 Months Data (optimized with faster delays)
+    console.log(`[Dashboard] 🚀 CALLING fetch6MonthMetrics()...`);
+    const data6m = await fetch6MonthMetrics();
+    console.log(`[Dashboard] 📊 6M Data returned: revenue=${data6m.revenue}, ltv=${data6m.ltv}, roi=${data6m.roi}`);
+
+    // 8. Last Month Data
+    const lastMonthData = await fetchLastMonthData();
+    console.log(`[Dashboard] 📊 LastMonth Data: revenue=${lastMonthData.revenue}`);
+
+    // 9. Funnel data from GA4
     const sessions = googleData?.sessions || 0;
     const addToCarts = googleData?.addToCarts || 0;
     const checkouts = googleData?.checkouts || 0;
@@ -202,10 +211,9 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
             newRevenue: finalSegmentation.newRevenue,
             acquiredCustomers,
             cac,
-            // 6-month metrics removed - loaded separately via Suspense
-            revenue12m: 0,
-            ltv12m: 0,
-            roi12m: 0
+            revenue12m: data6m.revenue,
+            ltv12m: data6m.ltv,
+            roi12m: data6m.roi
         },
         revenue: totalRevenue,
         sessions,
@@ -218,11 +226,10 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
         tinySource: allOrders.length > 0 ? 'Tiny + Wake (Real)' : 'Sem Dados',
         midia_source: 'Google Ads + Meta Ads',
         dateRange: { start: startDate, end: endDate },
-        // Last month data removed - loaded separately via Suspense
-        roi12Months: 0,
-        revenueLastMonth: 0,
-        investmentLastMonth: 0,
-        lastMonthLabel: '',
+        roi12Months: data6m.roi,
+        revenueLastMonth: lastMonthData.revenue,
+        investmentLastMonth: lastMonthData.investment,
+        lastMonthLabel: lastMonthData.label,
         source: 'Tiny + Wake + GA4 + Meta',
     };
 }

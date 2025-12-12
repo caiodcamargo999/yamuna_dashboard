@@ -2,12 +2,10 @@ import { Header } from "@/components/layout/Header";
 import { FunnelOverview } from "@/components/charts/FunnelOverview";
 import { fetchDashboardData } from "@/app/actions";
 import { Suspense } from "react";
-import { DollarSign, ShoppingCart, Users, TrendingUp, TrendingDown } from "lucide-react";
+import { DollarSign, ShoppingCart, Users, Rocket, TrendingUp, TrendingDown } from "lucide-react";
 import { format, subDays, parseISO } from "date-fns";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
-import { SixMonthMetricsSection } from "@/components/dashboard/SixMonthMetrics";
-import { LastMonthSection } from "@/components/dashboard/LastMonthData";
 
 // Force dynamic rendering to respect date filters
 export const dynamic = 'force-dynamic';
@@ -152,8 +150,21 @@ export default async function DashboardPage(props: Props) {
                         </div>
                     </section>
 
-                    {/* Section 4: Growth & Long Term - Loaded Async with Suspense */}
-                    <SixMonthMetricsSection />
+                    {/* Section 4: Growth & Long Term */}
+                    <section className="relative">
+                        <div className="absolute left-1/2 -top-4 w-32 h-20 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                        <div className="flex items-center gap-2 mb-4 ml-1">
+                            <div className="p-1.5 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/20">
+                                <Rocket className="text-white w-4 h-4" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Crescimento (6 Meses)</h3>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <KPIGlassCard label="Faturamento 6 Meses" value={data.kpis.revenue12m} prefix="R$ " delay={11} />
+                            <KPIGlassCard label="LTV 6 Meses" value={data.kpis.ltv12m} prefix="R$ " delay={12} />
+                            <KPIGlassCard label="ROI 6 Meses" value={data.kpis.roi12m} suffix="x" format="decimal" delay={13} />
+                        </div>
+                    </section>
 
                 </div>
 
@@ -170,7 +181,23 @@ export default async function DashboardPage(props: Props) {
                     </GlassCard>
 
                     <div className="space-y-6">
-                        <LastMonthSection />
+                        <GlassCard delay={13}>
+                            <h3 className="text-lg font-semibold text-white mb-4">Mês Anterior ({data.lastMonthLabel})</h3>
+                            <div className="space-y-6">
+                                <div className="p-4 bg-slate-950/40 rounded-lg border border-white/5">
+                                    <span className="text-sm text-slate-400 block mb-1">Receita Faturada</span>
+                                    <div className="text-2xl font-bold text-emerald-400">
+                                        R$ <AnimatedNumber value={data.revenueLastMonth || 0} format="decimal" />
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-slate-950/40 rounded-lg border border-white/5">
+                                    <span className="text-sm text-slate-400 block mb-1">Investimento Ads</span>
+                                    <div className="text-2xl font-bold text-white">
+                                        R$ <AnimatedNumber value={data.investmentLastMonth || 0} format="decimal" />
+                                    </div>
+                                </div>
+                            </div>
+                        </GlassCard>
                     </div>
                 </div>
             </div>

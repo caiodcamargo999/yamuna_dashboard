@@ -3,6 +3,8 @@
  * Público-alvo (Demographics) and Origem/Mídia (Source/Medium)
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { google } from "googleapis";
 
 const GA4_PROPERTY_ID = process.env.GA4_PROPERTY_ID;
@@ -284,6 +286,104 @@ export async function getGA4SourceMedium(startDate: string, endDate: string) {
         };
     } catch (error: any) {
         console.error("[GA4 Source/Medium] Error:", error.message);
+        return null;
+    }
+}
+
+/**
+ * Fetch Google Ads Campaign Data via GA4
+ * Filters for source=google and medium=cpc
+ */
+export async function getGA4GoogleAdsCampaigns(startDate: string, endDate: string) {
+    const analyticsData = getAnalyticsClient();
+    if (!analyticsData) {
+        return null;
+    }
+
+    const safeEndDate = getSafeEndDate(endDate);
+
+    try {
+        const report = await analyticsData.properties.runReport({
+            property: `properties/${GA4_PROPERTY_ID}`,
+            requestBody: {
+                dateRanges: [{ startDate, endDate: safeEndDate }],
+                dimensions: [
+                    { name: "sessionSource" },
+                    { name: "sessionMedium" },
+                    { name: "sessionCampaignName" }
+                ],
+                metrics: [
+                    { name: "sessions" },
+                    { name: "ecommercePurchases" },
+                    { name: "totalRevenue" }
+                ],
+                // Filter specifically for Google CPC
+                dimensionFilter: {
+                    andGroup: {
+                        expressions: [
+                            {
+                                filter: {
+                                    fieldName: "sessionSource",
+                                    stringFilter: { value: "google", matchType: "CONTAINS" } // 'google' domain
+                                }
+                            },
+                            {
+                                filter: {
+                                    fieldName: "sessionMedium",
+                                    stringFilter: { value: "cpc", matchType: "EXACT" }
+                                }
+                            }
+                        ]
+                    }
+                },
+                orderBys: [{ metric: { metricName: "sessions" }, desc: true }]
+            }
+        });
+
+        const campaigns = (report.data.rows || []).map((row: any) => {
+            const sessions = parseInt(row.metricValues?.[0]?.value || "0");
+            const purchases = parseInt(row.metricValues?.[1]?.value || "0");
+            const revenue = parseFloat(row.metricValues?.[2]?.value || "0");
+
+            return {
+                name: row.dimensionValues?.[2]?.value || "(not set)", // sessionCampaignName
+                sessions,
+                purchases,
+                revenue,
+                conversionRate: sessions > 0 ? (purchases / sessions) * 100 : 0,
+                avgTicket: purchases > 0 ? revenue / purchases : 0
+            };
+        });
+
+        // Consolidate duplicates (if any same campaign name split by slight source variations)
+        const consolidated = campaigns.reduce((acc: any[], curr) => {
+            const existing = acc.find(c => c.name === curr.name);
+            if (existing) {
+                existing.sessions += curr.sessions;
+                existing.purchases += curr.purchases;
+                existing.revenue += curr.revenue;
+                // Recalc rates
+                existing.conversionRate = existing.sessions > 0 ? (existing.purchases / existing.sessions) * 100 : 0;
+                existing.avgTicket = existing.purchases > 0 ? existing.revenue / existing.purchases : 0;
+            } else {
+                acc.push(curr);
+            }
+            return acc;
+        }, []);
+
+        const totals = consolidated.reduce((acc, curr) => ({
+            sessions: acc.sessions + curr.sessions,
+            purchases: acc.purchases + curr.purchases,
+            revenue: acc.revenue + curr.revenue
+        }), { sessions: 0, purchases: 0, revenue: 0 });
+
+        return {
+            campaigns: consolidated.sort((a, b) => b.revenue - a.revenue),
+            totals
+        };
+
+    } catch (error: any) {
+        console.error("[GA4 Google Ads] Error:", error.message);
         return null;
     }
 }

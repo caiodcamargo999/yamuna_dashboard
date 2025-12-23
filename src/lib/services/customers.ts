@@ -251,6 +251,24 @@ export function calculateRevenueSegmentation(
     console.log(`[Customer ID]   Name: ${nameCount} (${((nameCount / currentPeriodOrders.length) * 100).toFixed(1)}%)`);
     console.log(`[Customer ID]   Unknown: ${unknownCount} (${((unknownCount / currentPeriodOrders.length) * 100).toFixed(1)}%)`);
 
+    // Validation checks
+    const totalRevenue = currentPeriodOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+    const calculatedTotal = newRevenue + retentionRevenue;
+    const revenueDifference = Math.abs(totalRevenue - calculatedTotal);
+
+    if (revenueDifference > 1) {
+        console.warn(`[Segmentation] ⚠️ Revenue mismatch detected!`);
+        console.warn(`[Segmentation]   Total Revenue: R$ ${totalRevenue.toFixed(2)}`);
+        console.warn(`[Segmentation]   Calculated (New + Retention): R$ ${calculatedTotal.toFixed(2)}`);
+        console.warn(`[Segmentation]   Difference: R$ ${revenueDifference.toFixed(2)}`);
+    }
+
+    if (newCustomerIds.size === 0 && currentPeriodOrders.length > 0) {
+        console.error(`[Segmentation] 🚨 CRITICAL: No new customers found in ${currentPeriodOrders.length} orders!`);
+        console.error(`[Segmentation] 🚨 This suggests customer matching is failing.`);
+        console.error(`[Segmentation] 🚨 Historical customers: ${existingCustomers.size}`);
+    }
+
     return {
         newRevenue,
         retentionRevenue,

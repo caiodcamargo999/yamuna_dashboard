@@ -1,9 +1,11 @@
+
 import { Header } from "@/components/layout/Header";
-import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { DollarSign, MousePointer2, ShoppingBag, Users } from "lucide-react";
+import { getGA4GoogleAdsCampaigns } from "@/lib/services/ga4-reports";
+import { format, subDays, parseISO } from "date-fns";
 
-
-// Enable ISR with 5 minute revalidation
-export const revalidate = 300;
+// Enable dynamic rendering
+export const dynamic = 'force-dynamic';
 
 interface Props {
     searchParams: { start?: string; end?: string };
@@ -14,172 +16,148 @@ export default async function GoogleAdsPage(props: Props) {
     const startDate = searchParams.start || "30daysAgo";
     const endDate = searchParams.end || "today";
 
-    // Real data - will be populated when Google Ads API is connected
-    const metrics = {
-        impressions: 0,
-        clicks: 0,
-        cpcAvg: 0,
-        ctr: 0,
-        cost: 0,
-        revenue: 0,
-        roas: 0,
-        avgTicket: 0,
-        costPerPurchase: 0
-    };
+    // Date parsing logic (same as main dashboard)
+    let startIso = startDate;
+    let endIso = endDate;
 
-    const campaigns: any[] = [];
+    if (startDate === "30daysAgo") {
+        startIso = format(subDays(new Date(), 30), "yyyy-MM-dd");
+    }
+    if (endDate === "today") {
+        endIso = format(new Date(), "yyyy-MM-dd");
+    }
+
+    // Fetch data
+    const data = await getGA4GoogleAdsCampaigns(startIso, endIso);
+
+    const totals = data?.totals || { sessions: 0, purchases: 0, revenue: 0 };
+    const campaigns = data?.campaigns || [];
+
+    // Calculate derived metrics
+    const conversionRate = totals.sessions > 0 ? (totals.purchases / totals.sessions) * 100 : 0;
+    const avgTicket = totals.purchases > 0 ? totals.revenue / totals.purchases : 0;
 
     return (
         <>
-            <Header title="Google Ads" />
-            <main className="p-6 space-y-6 overflow-y-auto w-full">
-                {/* Summary Metrics */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-slate-900 border border-orange-600 rounded-xl p-4">
-                        <p className="text-slate-400 text-xs mb-1">Impressões</p>
-                        <p className="text-white text-2xl font-bold">
-                            {(metrics.impressions / 1000).toFixed(2)}k
-                        </p>
-                        <p className="text-xs text-green-400 mt-1">↑ 18,3%</p>
-                    </div>
+            <Header title="Google Ads (via GA4)" />
+            <main className="p-4 lg:p-8 space-y-8 max-w-[1600px] mx-auto animate-fade-in">
 
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                        <p className="text-slate-400 text-xs mb-1">Cliques</p>
-                        <p className="text-white text-2xl font-bold">
-                            {(metrics.clicks / 1000).toFixed(1)} mil
-                        </p>
-                        <p className="text-xs text-green-400 mt-1">↑ 9,5%</p>
+                {/* Intro / Note */}
+                <div className="bg-blue-900/10 border border-blue-800/50 rounded-lg p-3 flex items-center gap-3">
+                    <div className="p-2 bg-blue-500/10 rounded-full">
+                        <Users className="text-blue-400 w-4 h-4" />
                     </div>
-
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                        <p className="text-slate-400 text-xs mb-1">CPC médio</p>
-                        <p className="text-white text-2xl font-bold">
-                            R$ {metrics.cpcAvg.toFixed(2)}
+                    <div>
+                        <p className="text-blue-200 text-sm">
+                            Mostrando dados de tráfego <strong>Pago do Google</strong> capturados pelo Google Analytics 4.
                         </p>
-                        <p className="text-xs text-green-400 mt-1">↑ 13,0%</p>
-                    </div>
-
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                        <p className="text-slate-400 text-xs mb-1">CTR</p>
-                        <p className="text-white text-2xl font-bold">
-                            {metrics.ctr}%
+                        <p className="text-blue-400/60 text-xs">
+                            Métricas de custo (CPC, ROAS) requerem vínculo direto com o Google Ads e importação de custo no GA4.
                         </p>
-                        <p className="text-xs text-green-400 mt-1">↑ 10,3%</p>
                     </div>
                 </div>
 
-                {/* Financial Metrics */}
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                    <div className="bg-orange-600 rounded-xl p-4">
-                        <div className="flex items-center gap-2 mb-1">
-                            <DollarSign className="text-white" size={16} />
-                            <p className="text-white text-xs">Custo</p>
+                {/* KPI Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Sessions */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 relative overflow-hidden group hover:border-indigo-500/50 transition-colors">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <MousePointer2 className="w-16 h-16 text-indigo-500" />
                         </div>
-                        <p className="text-white text-2xl font-bold">
-                            R$ {metrics.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <p className="text-slate-400 text-sm font-medium mb-2">Sessões (Cliques)</p>
+                        <h3 className="text-3xl font-bold text-white mb-1">
+                            {totals.sessions.toLocaleString('pt-BR')}
+                        </h3>
+                        <p className="text-xs text-slate-500">Visitantes via Google CPC</p>
+                    </div>
+
+                    {/* Revenue */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 relative overflow-hidden group hover:border-emerald-500/50 transition-colors">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <DollarSign className="w-16 h-16 text-emerald-500" />
+                        </div>
+                        <p className="text-slate-400 text-sm font-medium mb-2">Receita Gerada</p>
+                        <h3 className="text-3xl font-bold text-emerald-400 mb-1">
+                            R$ {totals.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </h3>
+                        <p className="text-xs text-emerald-500/60">Faturamento atribuído</p>
+                    </div>
+
+                    {/* Purchases */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 relative overflow-hidden group hover:border-amber-500/50 transition-colors">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <ShoppingBag className="w-16 h-16 text-amber-500" />
+                        </div>
+                        <p className="text-slate-400 text-sm font-medium mb-2">Conversões</p>
+                        <h3 className="text-3xl font-bold text-white mb-1">
+                            {totals.purchases}
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                            Taxa de Conv.: <span className="text-amber-400">{conversionRate.toFixed(2)}%</span>
                         </p>
                     </div>
 
-                    <div className="bg-orange-600 rounded-xl p-4">
-                        <p className="text-white text-xs mb-1">Receita</p>
-                        <p className="text-white text-2xl font-bold">
-                            R$ {metrics.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                    </div>
-
-                    <div className="bg-orange-600 rounded-xl p-4">
-                        <p className="text-white text-xs mb-1">ROAS</p>
-                        <p className="text-white text-2xl font-bold">
-                            {metrics.roas.toFixed(1)}
-                        </p>
-                    </div>
-
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                        <p className="text-slate-400 text-xs mb-1">Ticket Médio</p>
-                        <p className="text-white text-2xl font-bold">
-                            R$ {metrics.avgTicket.toFixed(2)}
-                        </p>
-                    </div>
-
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                        <p className="text-slate-400 text-xs mb-1">Custo por Compra</p>
-                        <p className="text-white text-2xl font-bold">
-                            {metrics.costPerPurchase.toFixed(1)}
-                        </p>
+                    {/* Avg Ticket */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 relative overflow-hidden group hover:border-violet-500/50 transition-colors">
+                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <DollarSign className="w-16 h-16 text-violet-500" />
+                        </div>
+                        <p className="text-slate-400 text-sm font-medium mb-2">Ticket Médio Ads</p>
+                        <h3 className="text-3xl font-bold text-white mb-1">
+                            R$ {avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </h3>
                     </div>
                 </div>
 
                 {/* Campaigns Table */}
                 <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                    <div className="p-4 border-b border-slate-800">
-                        <h3 className="text-lg font-bold text-white">Campanhas</h3>
+                    <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-white">Performance por Campanha</h3>
+                        <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded">Top Campanhas via GA4</span>
                     </div>
 
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-slate-950 text-slate-400 text-xs uppercase">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-950 text-slate-400 text-xs uppercase font-semibold">
                                 <tr>
-                                    <th className="px-4 py-3 text-left">Campanha</th>
-                                    <th className="px-4 py-3 text-right">Custo</th>
-                                    <th className="px-4 py-3 text-right">% Δ</th>
-                                    <th className="px-4 py-3 text-right">Cliques</th>
-                                    <th className="px-4 py-3 text-right">CPC médio</th>
-                                    <th className="px-4 py-3 text-right">CTR</th>
-                                    <th className="px-4 py-3 text-right">Compras</th>
-                                    <th className="px-4 py-3 text-right">% Δ</th>
-                                    <th className="px-4 py-3 text-right">Custo/conv.</th>
-                                    <th className="px-4 py-3 text-right">% Δ</th>
-                                    <th className="px-4 py-3 text-right">Receita</th>
-                                    <th className="px-4 py-3 text-right">% Δ</th>
-                                    <th className="px-4 py-3 text-right">ROAS</th>
+                                    <th className="px-6 py-4">Campanha</th>
+                                    <th className="px-6 py-4 text-right">Sessões</th>
+                                    <th className="px-6 py-4 text-right">Conversões</th>
+                                    <th className="px-6 py-4 text-right">Taxa Conv.</th>
+                                    <th className="px-6 py-4 text-right">Receita</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800 text-slate-300">
                                 {campaigns.length === 0 ? (
                                     <tr>
-                                        <td colSpan={13} className="px-4 py-12 text-center">
-                                            <p className="text-slate-400 mb-2">Nenhuma campanha do Google Ads encontrada</p>
-                                            <p className="text-slate-500 text-xs">Configure a API do Google Ads para ver os dados aqui</p>
+                                        <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                                            Nenhum tráfego do Google Ads (medium=cpc) encontrado neste período.
                                         </td>
                                     </tr>
                                 ) : (
-                                    campaigns.map((campaign, i) => (
-                                        <tr key={i} className="hover:bg-slate-800/50">
-                                            <td className="px-4 py-3 text-white font-medium">{campaign.name}</td>
-                                            <td className="px-4 py-3 text-right font-mono">R$ {campaign.cost}</td>
-                                            <td className={`px-4 py-3 text-right text-xs ${campaign.deltaPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                {campaign.deltaPercent >= 0 ? '↑' : '↓'} {Math.abs(campaign.deltaPercent)}%
+                                    campaigns.map((camp, i) => (
+                                        <tr key={i} className="hover:bg-slate-800/50 transition-colors group">
+                                            <td className="px-6 py-4 font-medium text-white group-hover:text-indigo-400 transition-colors">
+                                                {camp.name}
                                             </td>
-                                            <td className="px-4 py-3 text-right font-mono">{campaign.clicks}</td>
-                                            <td className="px-4 py-3 text-right font-mono">R$ {campaign.cpc.toFixed(2)}</td>
-                                            <td className="px-4 py-3 text-right font-mono">{campaign.ctr}%</td>
-                                            <td className="px-4 py-3 text-right font-mono font-bold">{campaign.purchases}</td>
-                                            <td className={`px-4 py-3 text-right text-xs ${campaign.purchaseDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                {campaign.purchaseDelta >= 0 ? '↑' : '↓'} {Math.abs(campaign.purchaseDelta)}%
+                                            <td className="px-6 py-4 text-right font-mono text-slate-400">
+                                                {camp.sessions.toLocaleString()}
                                             </td>
-                                            <td className="px-4 py-3 text-right font-mono">R$ {campaign.costPerConv}</td>
-                                            <td className={`px-4 py-3 text-right text-xs ${campaign.convDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                {campaign.convDelta >= 0 ? '↑' : '↓'} {Math.abs(campaign.convDelta)}%
+                                            <td className="px-6 py-4 text-right font-mono font-bold text-white">
+                                                {camp.purchases}
                                             </td>
-                                            <td className="px-4 py-3 text-right font-mono text-emerald-400">R$ {campaign.revenue.toLocaleString('pt-BR')}</td>
-                                            <td className={`px-4 py-3 text-right text-xs ${campaign.revenueDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                {campaign.revenueDelta >= 0 ? '↑' : '↓'} {Math.abs(campaign.revenueDelta)}%
+                                            <td className="px-6 py-4 text-right font-mono text-amber-400/90">
+                                                {camp.conversionRate.toFixed(2)}%
                                             </td>
-                                            <td className="px-4 py-3 text-right font-mono font-bold text-emerald-400">{campaign.roas.toFixed(2)}</td>
+                                            <td className="px-6 py-4 text-right font-mono font-bold text-emerald-400">
+                                                R$ {camp.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </td>
                                         </tr>
                                     ))
                                 )}
                             </tbody>
                         </table>
                     </div>
-                </div>
-
-                {/* Note */}
-                <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-4">
-                    <p className="text-blue-300 text-sm">
-                        <strong>Nota:</strong> Configure a API do Google Ads para ver dados detalhados de campanhas, palavras-chave e anúncios.
-                        Consulte o arquivo <code>GOOGLE_ADS_SETUP.md</code> para instruções.
-                    </p>
                 </div>
             </main>
         </>

@@ -152,5 +152,6 @@ export const CACHE_TTL = {
     MEDIUM: 300,        // 5 minutes - default
     LONG: 900,          // 15 minutes - for semi-static data
     HOUR: 3600,         // 1 hour - for historical/12-month data
+    FOUR_HOURS: 14400,  // 4 hours - for very historical data (365 days)
     DAY: 86400          // 24 hours - for static data
 } as const;

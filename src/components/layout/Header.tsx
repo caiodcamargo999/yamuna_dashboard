@@ -50,15 +50,13 @@ export function Header({ title }: { title: string }) {
         setShowMobileModal(false);
 
         // Build URL params
-        const params = new URLSearchParams();
-        params.set("start", startDate);
-        params.set("end", endDate);
+        const params = new URLSearchParams(searchParams.toString());
+        if (startDate) params.set("start", startDate);
+        if (endDate) params.set("end", endDate);
 
-        // HARD NAVIGATION to force re-fetch (bypasses Next.js cache)
-        window.location.href = `${pathname}?${params.toString()}`;
-
-        // Simple feedback since we don't have a toast lib yet
-        // In a real app we'd use sonner/toast
+        // Soft navigation (bypasses full reload, keeps client state)
+        // Using replace to update current entry
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     };
 
     const handleMobileFilter = () => {

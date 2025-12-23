@@ -10,6 +10,18 @@ interface TinyOrderBasic {
     };
 }
 
+export interface TinyOrder {
+    id: string;
+    date: string;
+    total: number;
+    status: string;
+    customerCpfCnpj: string;
+    customerName: string;
+    customerEmail: string;
+    seller: string;
+    raw: any;
+}
+
 interface TinyOrderDetail {
     id: string;
     numero: string;
@@ -254,6 +266,11 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
                 allOrders = [...allOrders, ...orders];
                 console.log(`[Tiny API] ✅ Page ${page} received ${orders.length} orders. Total so far: ${allOrders.length}`);
 
+                // DEBUG: Log first order structure to see available fields
+                // if (orders.length > 0 && page === 1) {
+                //     console.log(`[Tiny API] 🔍 Raw Order Structure:`, JSON.stringify(orders[0], null, 2));
+                // }
+
                 if (orders.length < 100) {
                     hasMore = false;
                 } else {
@@ -289,6 +306,7 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
             customerCpfCnpj: pedido.cpf_cnpj || pedido.cnpj || "",
             customerName: pedido.nome || pedido.nome_cliente || "",
             customerEmail: pedido.email || "",
+            seller: pedido.nome_vendedor || pedido.vendedor || "", // Map seller name
             raw: pedido
         };
     });

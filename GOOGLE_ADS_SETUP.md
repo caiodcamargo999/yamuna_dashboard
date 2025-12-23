@@ -1,3 +1,5 @@
+
+
 # Como Conectar a API do Google Ads
 
 ## 📋 Pré-requisitos

@@ -12,6 +12,7 @@ import {
     mergeOrders,
     getCustomerId
 } from "@/lib/services/customers";
+import { segmentB2BvsB2C } from "@/lib/services/b2b-segmentation";
 import { differenceInDays, subDays, parseISO, format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 
 /**
@@ -19,45 +20,60 @@ import { differenceInDays, subDays, parseISO, format, subMonths, startOfMonth, e
  * Implements correct formulas from PDF document
  */
 export async function fetchDashboardData(startDate = "30daysAgo", endDate = "today") {
+    console.log(`\n\n========== DASHBOARD DATA FETCH ==========`);
     console.log(`[Dashboard] 📅 Called with: startDate="${startDate}", endDate="${endDate}"`);
+    console.log(`[Dashboard] 🕰️ Current time: ${new Date().toISOString()}`);
 
     // 1. Date Range Setup
     let currentStart: Date;
     let currentEnd: Date;
 
     if (startDate === "30daysAgo") {
+        console.log(`[Dashboard] ⏱️ Using default 30 days ago`);
         currentEnd = new Date();
         currentStart = subDays(currentEnd, 30);
     } else {
+        console.log(`[Dashboard] 📆 Parsing custom dates...`);
         currentStart = parseISO(startDate);
         currentEnd = endDate === "today" ? new Date() : parseISO(endDate);
+        console.log(`[Dashboard]   - Parsed Start: ${currentStart.toISOString()}`);
+        console.log(`[Dashboard]   - Parsed End: ${currentEnd.toISOString()}`);
     }
 
     const startStr = format(currentStart, "yyyy-MM-dd");
     const endStr = format(currentEnd, "yyyy-MM-dd");
-    // Cache with date-specific key - V10 with FIXED CPF/CNPJ extraction from pedido object
-    const cacheKey = `dashboard:v10:${startStr}:${endStr}`;
+    // Cache with date-specific key - V12: Back to getTinyOrders for performance (44% CPF acceptable)
+    const cacheKey = `dashboard:v12:${startStr}:${endStr}`;
 
-    console.log(`[Dashboard] 🎯 Period: ${startStr} to ${endStr}`);
-    // Check if token exists in this context
+    console.log(`[Dashboard] 🎯 Final Period: ${startStr} to ${endStr}`);
+    console.log(`[Dashboard] 📅 Cache Key: ${cacheKey}`);
     console.log(`[Dashboard] 🔑 Token check: ${process.env.TINY_API_TOKEN ? 'Present' : 'MISSING'}`);
+    console.log(`[Dashboard] 🛠️ Checking cache for key: ${cacheKey}...`);
 
     // 2. Fetch Current Period Data (with cache)
     const periodData = await withCache(cacheKey, async () => {
+        console.log(`[Dashboard] ❌ CACHE MISS - Fetching fresh data from APIs...`);
         const [googleData, tinyOrders, metaData, wakeOrders] = await Promise.all([
             getGoogleAnalyticsData(startStr, endStr),
-            getTinyOrders(startStr, endStr), // Fast basic orders
+            getTinyOrders(startStr, endStr), // Fast basic orders - 44% CPF rate is acceptable
             getMetaAdsInsights(startStr, endStr),
             getWakeOrders(startStr, endStr)
         ]);
+        console.log(`[Dashboard] ✅ Fresh data fetched successfully`);
         return { googleData, tinyOrders: tinyOrders || [], metaData, wakeOrders: wakeOrders || [] };
-    }, CACHE_TTL.MEDIUM);
+    }, CACHE_TTL.MEDIUM); // 5 minutes - good balance for dashboard freshness
+
+    console.log(`[Dashboard] 📦 Data retrieved (from cache or fresh)`);
 
     const { googleData, tinyOrders, metaData, wakeOrders } = periodData;
 
     // Skip enrichment - use customer names from raw Tiny data instead
     // All Tiny orders have names which we can use for matching
-    console.log(`[Dashboard] 📊 Using customer names from Tiny orders for segmentation`);
+    console.log(`[Dashboard] 📊 Data Summary:`);
+    console.log(`[Dashboard]   - Tiny orders: ${tinyOrders.length}`);
+    console.log(`[Dashboard]   - Wake orders: ${wakeOrders.length}`);
+    console.log(`[Dashboard]   - GA4 sessions: ${googleData?.sessions || 0}`);
+    console.log(`[Dashboard]   - Meta spend: R$ ${metaData?.spend || 0}`);
 
     const withNames = tinyOrders.filter((o: any) => {
         const name = o.nome || o.raw?.nome || o.customerName;
@@ -83,22 +99,23 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     console.log(`[Dashboard] 💸 Investment: R$ ${totalInvestment.toFixed(2)} (Google: ${googleAdsCost.toFixed(2)}, Meta: ${metaAdsCost.toFixed(2)})`);
 
     // 5. Calculate New Revenue vs Retention with REAL DATA
-    // Fetch historical orders (12 months before the selected period) to determine new vs returning customers
+    // Fetch historical orders (365 days/1 year before the selected period) to determine new vs returning customers
+    // This ensures accurate identification of returning customers even if they haven't purchased in 6+ months
     const historicalStartDate = format(subDays(currentStart, 365), "yyyy-MM-dd");
     const historicalEndDate = format(subDays(currentStart, 1), "yyyy-MM-dd");
 
-    const historicalCacheKey = `historical:v3:${historicalStartDate}:${historicalEndDate}`;
+    const historicalCacheKey = `historical:v5:365d:${historicalStartDate}:${historicalEndDate}`;
 
     console.log(`[Dashboard] 📊 Fetching historical data: ${historicalStartDate} to ${historicalEndDate}`);
 
     // Fetch historical orders efficiently (only need customer IDs, not full details)
     const historicalData = await withCache(historicalCacheKey, async () => {
         const [historicalTiny, historicalWake] = await Promise.all([
-            getTinyOrders(historicalStartDate, historicalEndDate),
+            getTinyOrders(historicalStartDate, historicalEndDate), // Fast basic fetch
             getWakeOrders(historicalStartDate, historicalEndDate)
         ]);
         return mergeOrders(historicalTiny || [], historicalWake || []);
-    }, CACHE_TTL.LONG);
+    }, CACHE_TTL.HOUR); // 1 hour - historical data rarely changes
 
     console.log(`[Dashboard] 📦 Historical orders found: ${historicalData.length}`);
 
@@ -109,10 +126,35 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
 
     const segmentation = calculateRevenueSegmentation(allOrders, historicalData);
 
+    // Verification using existing totalRevenue from line 78
+    const calculatedTotal = segmentation.newRevenue + segmentation.retentionRevenue;
+
+    console.log(`[Dashboard] 💰 Revenue Verification:`);
+    console.log(`[Dashboard]   - Total orders: ${allOrders.length}`);
+    console.log(`[Dashboard]   - Total Revenue (sum): R$ ${totalRevenue.toFixed(2)}`);
+    console.log(`[Dashboard]   - New Revenue: R$ ${segmentation.newRevenue.toFixed(2)}`);
+    console.log(`[Dashboard]   - Retention Revenue: R$ ${segmentation.retentionRevenue.toFixed(2)}`);
+    console.log(`[Dashboard]   - Calculated Total: R$ ${calculatedTotal.toFixed(2)}`);
+    console.log(`[Dashboard]   - Match: ${Math.abs(totalRevenue - calculatedTotal) < 1 ? '✅ OK' : '❌ MISMATCH'}`);
+
     console.log(`[Dashboard] 👥 New Customers (Real): ${segmentation.newCustomersCount}`);
     console.log(`[Dashboard] 🔄 Returning Customers (Real): ${segmentation.returningCustomersCount}`);
     console.log(`[Dashboard] 💵 New Revenue (Real): R$ ${segmentation.newRevenue.toFixed(2)}`);
     console.log(`[Dashboard] 💵 Retention Revenue (Real): R$ ${segmentation.retentionRevenue.toFixed(2)}`);
+
+    // Calculate B2B vs B2C segmentation
+    const b2bSegmentation = segmentB2BvsB2C(allOrders);
+    console.log(`\n[Dashboard] 🏢 B2B vs B2C Segmentation:`);
+    console.log(`[Dashboard]   B2B (CNPJ - Empresas):`);
+    console.log(`[Dashboard]     - Revenue: R$ ${b2bSegmentation.b2bRevenue.toFixed(2)}`);
+    console.log(`[Dashboard]     - Orders: ${b2bSegmentation.b2bOrders}`);
+    console.log(`[Dashboard]     - Customers: ${b2bSegmentation.b2bCustomers}`);
+    console.log(`[Dashboard]     - Avg Ticket: R$ ${b2bSegmentation.b2bAverageTicket.toFixed(2)}`);
+    console.log(`[Dashboard]   B2C (CPF - Pessoa Física):`);
+    console.log(`[Dashboard]     - Revenue: R$ ${b2bSegmentation.b2cRevenue.toFixed(2)}`);
+    console.log(`[Dashboard]     - Orders: ${b2bSegmentation.b2cOrders}`);
+    console.log(`[Dashboard]     - Customers: ${b2bSegmentation.b2cCustomers}`);
+    console.log(`[Dashboard]     - Avg Ticket: R$ ${b2bSegmentation.b2cAverageTicket.toFixed(2)}`);
 
     // FALLBACK: If retention is 0 (customer matching failed), use REAL data from Wake
     let finalSegmentation = segmentation;
@@ -231,6 +273,7 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
         investmentLastMonth: lastMonthData.investment,
         lastMonthLabel: lastMonthData.label,
         source: 'Tiny + Wake + GA4 + Meta',
+        b2b: b2bSegmentation, // B2B vs B2C metrics
     };
 }
 

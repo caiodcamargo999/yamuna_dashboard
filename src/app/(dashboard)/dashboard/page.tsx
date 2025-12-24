@@ -7,8 +7,9 @@ import { format, subDays, parseISO } from "date-fns";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
-// Force dynamic rendering to respect date filters
-export const dynamic = 'force-dynamic';
+// Use ISR (Incremental Static Regeneration) for better performance
+// Revalidate every 5 minutes - shows cached version instantly while updating in background
+export const revalidate = 300; // 5 minutes
 
 
 // Helper Component for the Premium Glass Cards

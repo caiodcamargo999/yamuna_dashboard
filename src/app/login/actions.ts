@@ -36,11 +36,16 @@ export async function signup(formData: FormData) {
     const email = formData.get('email') as string
     const password = formData.get('password') as string
 
-    // Robust URL resolution
+    // Robust URL resolution for email confirmation
     let siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-    if (!siteUrl && process.env.VERCEL_URL) {
+
+    // In production, prefer VERCEL_PROJECT_PRODUCTION_URL over VERCEL_URL
+    if (!siteUrl && process.env.VERCEL_ENV === 'production' && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+        siteUrl = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+    } else if (!siteUrl && process.env.VERCEL_URL) {
         siteUrl = `https://${process.env.VERCEL_URL}`;
     }
+
     if (!siteUrl) {
         siteUrl = 'http://localhost:3000';
     }
@@ -64,11 +69,17 @@ export async function signup(formData: FormData) {
 export async function signInWithGoogle() {
     const supabase = await createClient()
 
-    // Robust URL resolution
+    // Robust URL resolution for OAuth callback
     let siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-    if (!siteUrl && process.env.VERCEL_URL) {
+
+    // In production, prefer VERCEL_PROJECT_PRODUCTION_URL over VERCEL_URL
+    // VERCEL_URL can point to preview deployments that get deleted
+    if (!siteUrl && process.env.VERCEL_ENV === 'production' && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+        siteUrl = `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+    } else if (!siteUrl && process.env.VERCEL_URL) {
         siteUrl = `https://${process.env.VERCEL_URL}`;
     }
+
     if (!siteUrl) {
         siteUrl = 'http://localhost:3000';
     }

@@ -124,9 +124,9 @@ export async function GET(request: Request) {
         : "✅ CPF/CNPJ está sendo capturado corretamente.";
 
     // Check if HTML output is requested
-    const format = searchParams.get('format');
+    const outputFormat = searchParams.get('format');
 
-    if (format === 'html') {
+    if (outputFormat === 'html') {
         const html = `
             <!DOCTYPE html>
             <html>
@@ -223,3 +223,4 @@ export async function GET(request: Request) {
         recommendation
     });
 }
+

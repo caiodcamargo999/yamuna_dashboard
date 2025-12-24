@@ -19,6 +19,9 @@ export default async function SettingsPage() {
 
     const googleIdentity = user.identities?.find((id: any) => id.provider === 'google')
 
+    const googleAvatar = googleIdentity?.identity_data?.avatar_url || googleIdentity?.identity_data?.picture;
+    const finalAvatar = user.user_metadata.avatar_url || googleAvatar;
+
     return (
         <>
             <Header title="Configurações" />
@@ -28,7 +31,11 @@ export default async function SettingsPage() {
                 <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                     <div className="p-4 border-b border-slate-800 bg-slate-950/50 flex items-center gap-3">
                         <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
-                            <User size={20} />
+                            {finalAvatar ? (
+                                <img src={finalAvatar} alt="Avatar" className="w-5 h-5 rounded-full" />
+                            ) : (
+                                <User size={20} />
+                            )}
                         </div>
                         <h2 className="text-lg font-semibold text-white">Perfil</h2>
                     </div>
@@ -47,7 +54,7 @@ export default async function SettingsPage() {
                                     type="text"
                                     name="full_name"
                                     id="full_name"
-                                    defaultValue={profile?.full_name || ''}
+                                    defaultValue={user.user_metadata.full_name || user.user_metadata.name || ''}
                                     className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600"
                                     placeholder="Seu nome"
                                 />

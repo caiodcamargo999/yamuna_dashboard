@@ -88,7 +88,7 @@ export async function invalidateCache(keyOrPattern?: string): Promise<void> {
                 // Use scan to get all keys and delete them
                 let cursor = 0;
                 do {
-                    const [nextCursor, keys] = await redis.scan(cursor, { count: 100 }) as [number, string[]];
+                    const scanResult: any = await redis.scan(cursor, { count: 100 }); const nextCursor = scanResult[0] || 0; const keys = scanResult[1] || [];
                     cursor = nextCursor;
                     if (keys.length > 0) {
                         await redis.del(...keys);
@@ -155,3 +155,4 @@ export const CACHE_TTL = {
     FOUR_HOURS: 14400,  // 4 hours - for very historical data (365 days)
     DAY: 86400          // 24 hours - for static data
 } as const;
+

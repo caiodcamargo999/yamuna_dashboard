@@ -109,7 +109,7 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
 
         // 2. Fetch Creative Details (Images/Videos) for these Ad IDs
         const adIds = rows.map((r: any) => r.ad_id).join(',');
-        const adFields = "name,status,creative{image_url,thumbnail_url,video_id,object_type},campaign{objective}";
+        const adFields = "name,status,creative{image_url,thumbnail_url,video_id,object_type,body,title},campaign{objective}";
         const adsUrl = `https://graph.facebook.com/v19.0/?ids=${adIds}&fields=${adFields}&access_token=${ACCESS_TOKEN}`;
 
         const adsRes = await fetch(adsUrl, {
@@ -193,8 +193,9 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
             } catch (error) {
                 console.error('[Meta Ads] Error fetching video URLs:', error);
             }
-        }      // 4. Merge Data
-        return rows.map((row: any) => {
+        }
+        // 4. Merge Data
+        const initialResults = rows.map((row: any) => {
             const adDetails = adsData[row.ad_id] || {};
             const creative = adDetails.creative || {};
 
@@ -262,12 +263,14 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
                 revenue,
                 cpa,
                 leads,
-                cpl
+                cpl,
+                body: creative.body || "",
+                title: creative.title || ""
             };
         }).filter(Boolean);
 
         // Map video URLs to results
-        const resultsWithVideos = rows.map((creative: any) => {
+        const resultsWithVideos = initialResults.map((creative: any) => {
             if (creative.creativeType === 'video' && creative.videoId && videoUrlMap[creative.videoId]) {
                 const mapped = videoUrlMap[creative.videoId];
                 return {

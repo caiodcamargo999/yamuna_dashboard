@@ -14,18 +14,27 @@ export async function updateProfile(formData: FormData) {
 
     const fullName = formData.get('full_name') as string
 
-    const { error } = await supabase
+    // Update Auth Metadata (this is what we display in the sidebar/layout)
+    const { error: authError } = await supabase.auth.updateUser({
+        data: { full_name: fullName }
+    })
+
+    if (authError) {
+        console.error('Update auth metadata error:', authError)
+    }
+
+    // Also try to update profiles table if it exists
+    const { error: tableError } = await supabase
         .from('profiles')
         .update({ full_name: fullName })
         .eq('id', user.id)
 
-    if (error) {
-        console.error('Update profile error:', error)
-        // return { error: 'Could not update profile' } 
+    if (tableError) {
+        console.warn('Update profiles table error (ignorable if using metadata):', tableError)
     }
 
     revalidatePath('/settings')
-    // return { success: 'Profile updated successfully' }
+    revalidatePath('/', 'layout') // Refresh sidebar
 }
 
 export async function updatePassword(formData: FormData) {

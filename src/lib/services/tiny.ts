@@ -66,7 +66,7 @@ const orderDetailsCache = new Map<string, TinyOrderDetail>();
  * Get detailed order info including customer data
  * Uses pedido.obter.php endpoint
  */
-async function getTinyOrderDetail(orderId: string): Promise<TinyOrderDetail | null> {
+export async function getTinyOrderDetail(orderId: string): Promise<TinyOrderDetail | null> {
     // Check cache first
     if (orderDetailsCache.has(orderId)) {
         return orderDetailsCache.get(orderId)!;
@@ -186,7 +186,7 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     let allOrders: TinyOrderBasic[] = [];
     let page = 1;
     let hasMore = true;
-    const maxPages = 50; // Increased to capture Black Friday volume
+    const maxPages = 300; // Increased significantly to capture high volume (Black Friday/Holidays)
 
     // Convert dates to Tiny format (dd/MM/yyyy)
     let tinyStartDate = "";
@@ -208,68 +208,62 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
         // Add date parameters (using multiple parameter names for compatibility)
         if (tinyStartDate) {
             url += `&dataInicial=${encodeURIComponent(tinyStartDate)}`;
-            console.log(`[Tiny API] 📅 Data Início=${tinyStartDate}`);
         }
         if (tinyEndDate) {
             url += `&dataFinal=${encodeURIComponent(tinyEndDate)}`;
-            console.log(`[Tiny API] 📅 Data Fim=${tinyEndDate}`);
         }
 
         try {
             console.log(`[Tiny API] 🔍 Fetching page ${page}...`);
 
             let retries = 0;
-            const maxRetries = 3;
+            const maxRetries = 5; // Increased retries
             let data: any = null;
 
             while (retries <= maxRetries) {
-                const res = await fetch(url, {
-                    next: { revalidate: 0 },
-                    cache: 'no-store'
-                });
+                try {
+                    const res = await fetch(url, {
+                        next: { revalidate: 0 },
+                        cache: 'no-store'
+                    });
 
-                if (!res.ok) {
-                    console.error(`[Tiny API] ❌ HTTP Error: ${res.status}`);
-                    break;
+                    if (!res.ok) {
+                        console.error(`[Tiny API] ❌ HTTP Error: ${res.status}`);
+                        throw new Error(`Tiny API HTTP Error ${res.status}`);
+                    }
+
+                    data = await res.json();
+
+                    // Check for rate limit error
+                    const isRateLimited = data.retorno?.codigo_erro === 6; // 'Too Many Requests' logic from Tiny
+
+                    if (isRateLimited) {
+                        throw new Error("Tiny API Rate Limit");
+                    }
+
+                    break; // Success
+                } catch (fetchErr: any) {
+                    // Handle flaky network or rate limits
+                    if (retries < maxRetries) {
+                        const waitTime = Math.pow(2, retries) * 2000; // 2s, 4s, 8s, 16s...
+                        console.log(`[Tiny API] ⚠️ Failure/RateLimit (Page ${page}, Attempt ${retries + 1}). Waiting ${waitTime}ms... Error: ${fetchErr.message}`);
+                        await new Promise(resolve => setTimeout(resolve, waitTime));
+                        retries++;
+                    } else {
+                        // Max retries exceeded
+                        throw fetchErr;
+                    }
                 }
-
-                data = await res.json();
-
-                // Check for rate limit error
-                const isRateLimited = data.retorno?.codigo_erro === 6;
-
-                if (isRateLimited && retries < maxRetries) {
-                    const waitTime = Math.pow(2, retries) * 2000; // 2s, 4s, 8s
-                    console.log(`[Tiny API] ⏸️  Rate limited, waiting ${waitTime}ms before retry ${retries + 1}/${maxRetries}...`);
-                    await new Promise(resolve => setTimeout(resolve, waitTime));
-                    retries++;
-                    continue;
-                }
-
-                break; // Success or non-rate-limit error
-            }
-
-            if (!data) {
-                console.error(`[Tiny API] ❌ No data received after retries`);
-                break;
             }
 
             // DETAILED LOGGING for empty responses
             if (data.retorno?.status_processamento === 3 || !data.retorno?.pedidos) {
-                console.log(`[Tiny API] ⚠️ Empty response for ${tinyStartDate} to ${tinyEndDate}`);
-                console.log(`[Tiny API] 📋 Status: ${data.retorno?.status_processamento}`);
-                console.log(`[Tiny API] 📋 Message: ${data.retorno?.status || data.retorno?.codigo_erro || 'No message'}`);
-                console.log(`[Tiny API] 📋 Full response:`, JSON.stringify(data).substring(0, 500));
+                console.log(`[Tiny API] ℹ️ End of list reached at page ${page}.`);
                 hasMore = false;
             } else {
                 const orders = data.retorno.pedidos;
                 allOrders = [...allOrders, ...orders];
                 console.log(`[Tiny API] ✅ Page ${page} received ${orders.length} orders. Total so far: ${allOrders.length}`);
-
-                // DEBUG: Log first order structure to see available fields
-                // if (orders.length > 0 && page === 1) {
-                //     console.log(`[Tiny API] 🔍 Raw Order Structure:`, JSON.stringify(orders[0], null, 2));
-                // }
 
                 if (orders.length < 100) {
                     hasMore = false;
@@ -278,8 +272,10 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
                 }
             }
         } catch (error) {
-            console.error("Error fetching Tiny:", error);
-            hasMore = false;
+            console.error(`[Tiny API] 🚨 CRITICAL ERROR fetching page ${page}:`, error);
+            // THROW error to prevent partial data from being shown as "truth"
+            // It is better to show an error on the dashboard than incorrect revenue
+            throw new Error(`Falha ao buscar dados do Tiny (Página ${page}): ${error}`);
         }
     }
 
@@ -358,3 +354,4 @@ export async function getTinyProducts() {
         return [];
     }
 }
+

@@ -50,16 +50,56 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     console.log(`[Dashboard] 🔑 Token check: ${process.env.TINY_API_TOKEN ? 'Present' : 'MISSING'}`);
     console.log(`[Dashboard] 🛠️ Checking cache for key: ${cacheKey}...`);
 
+    // PRE-CALCULATE HISTORICAL DATES
+    const historicalStartDate = format(subDays(currentStart, 365), "yyyy-MM-dd");
+    const historicalEndDate = format(subDays(currentStart, 1), "yyyy-MM-dd");
+    const historicalCacheKey = `historical:v5:365d:${historicalStartDate}:${historicalEndDate}`;
+
+    // 🚀 OPTIMIZATION: Start all independent fetches immediately
+    const data6mPromise = fetch6MonthMetrics();
+    const lastMonthDataPromise = fetchLastMonthData();
+    const historicalDataPromise = withCache(historicalCacheKey, async () => {
+        try {
+            const [historicalTiny, historicalWake] = await Promise.all([
+                getTinyOrders(historicalStartDate, historicalEndDate).catch(e => {
+                    console.error("[Dashboard] ⚠️ Historical Tiny Fetch Failed:", e);
+                    return [];
+                }),
+                getWakeOrders(historicalStartDate, historicalEndDate).catch(e => {
+                    console.error("[Dashboard] ⚠️ Historical Wake Fetch Failed:", e);
+                    return [];
+                })
+            ]);
+            return mergeOrders(historicalTiny || [], historicalWake || []);
+        } catch (e) {
+            console.error("[Dashboard] 🚨 Critical Historical Data Error:", e);
+            return [];
+        }
+    }, CACHE_TTL.HOUR);
+
     // 2. Fetch Current Period Data (with cache)
     const periodData = await withCache(cacheKey, async () => {
         console.log(`[Dashboard] ❌ CACHE MISS - Fetching fresh data from APIs...`);
-        const [googleData, tinyOrders, metaData, wakeOrders] = await Promise.all([
+
+        // Use allSettled to prevent one API failure from crashing the whole dashboard
+        const [googleRes, tinyRes, metaRes, wakeRes] = await Promise.allSettled([
             getGoogleAnalyticsData(startStr, endStr),
             getTinyOrders(startStr, endStr), // Fast basic orders - 44% CPF rate is acceptable
             getMetaAdsInsights(startStr, endStr),
             getWakeOrders(startStr, endStr)
         ]);
-        console.log(`[Dashboard] ✅ Fresh data fetched successfully`);
+
+        // Log failures
+        if (tinyRes.status === 'rejected') console.error(`[Dashboard] ⚠️ Tiny API Error:`, tinyRes.reason);
+        if (metaRes.status === 'rejected') console.error(`[Dashboard] ⚠️ Meta API Error:`, metaRes.reason);
+
+        // Extract values or defaults
+        const googleData = googleRes.status === 'fulfilled' ? googleRes.value : null;
+        const tinyOrders = tinyRes.status === 'fulfilled' ? tinyRes.value : [];
+        const metaData = metaRes.status === 'fulfilled' ? metaRes.value : null;
+        const wakeOrders = wakeRes.status === 'fulfilled' ? wakeRes.value : [];
+
+        console.log(`[Dashboard] ✅ Fresh data fetched successfully (Tiny: ${tinyOrders?.length || 0} orders)`);
         return { googleData, tinyOrders: tinyOrders || [], metaData, wakeOrders: wakeOrders || [] };
     }, CACHE_TTL.MEDIUM); // 5 minutes - good balance for dashboard freshness
 
@@ -101,21 +141,14 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     // 5. Calculate New Revenue vs Retention with REAL DATA
     // Fetch historical orders (365 days/1 year before the selected period) to determine new vs returning customers
     // This ensures accurate identification of returning customers even if they haven't purchased in 6+ months
-    const historicalStartDate = format(subDays(currentStart, 365), "yyyy-MM-dd");
-    const historicalEndDate = format(subDays(currentStart, 1), "yyyy-MM-dd");
+    // Fetch historical orders (365 days/1 year before the selected period) to determine new vs returning customers
+    // This ensures accurate identification of returning customers even if they haven't purchased in 6+ months
 
-    const historicalCacheKey = `historical:v5:365d:${historicalStartDate}:${historicalEndDate}`;
-
+    // PREFLIGHT ALREADY STARTED AT TOP
     console.log(`[Dashboard] 📊 Fetching historical data: ${historicalStartDate} to ${historicalEndDate}`);
 
     // Fetch historical orders efficiently (only need customer IDs, not full details)
-    const historicalData = await withCache(historicalCacheKey, async () => {
-        const [historicalTiny, historicalWake] = await Promise.all([
-            getTinyOrders(historicalStartDate, historicalEndDate), // Fast basic fetch
-            getWakeOrders(historicalStartDate, historicalEndDate)
-        ]);
-        return mergeOrders(historicalTiny || [], historicalWake || []);
-    }, CACHE_TTL.HOUR); // 1 hour - historical data rarely changes
+    const historicalData = await historicalDataPromise;
 
     console.log(`[Dashboard] 📦 Historical orders found: ${historicalData.length}`);
 
@@ -228,13 +261,15 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
 
     const costPercentage = totalRevenue > 0 ? (totalInvestment / totalRevenue) * 100 : 0;
 
-    // 7. Last 6 Months Data (optimized with faster delays)
-    console.log(`[Dashboard] 🚀 CALLING fetch6MonthMetrics()...`);
-    const data6m = await fetch6MonthMetrics();
-    console.log(`[Dashboard] 📊 6M Data returned: revenue=${data6m.revenue}, ltv=${data6m.ltv}, roi=${data6m.roi}`);
+    // 7. Start fetch for Last 6 Months & Last Month concurrently
+    console.log(`[Dashboard] 🚀 Waiting for concurrent fetches (started at top)...`);
+    // const data6mPromise = fetch6MonthMetrics(); // Moved to top
+    // const lastMonthDataPromise = fetchLastMonthData(); // Moved to top
 
-    // 8. Last Month Data
-    const lastMonthData = await fetchLastMonthData();
+    // 8. Wait for all data
+    const [data6m, lastMonthData] = await Promise.all([data6mPromise, lastMonthDataPromise]);
+
+    console.log(`[Dashboard] 📊 6M Data returned: revenue=${data6m.revenue}, ltv=${data6m.ltv}, roi=${data6m.roi}`);
     console.log(`[Dashboard] 📊 LastMonth Data: revenue=${lastMonthData.revenue}`);
 
     // 9. Funnel data from GA4
@@ -291,9 +326,8 @@ export async function fetch6MonthMetrics() {
 
     console.log(`[12M Metrics] 🗓️ Period: ${start12m} to ${end12m} (365 days)`);
 
-    // Bypass cache for debugging (v6)
-    // return withCache(cacheKey, async () => {
-    const runFetch = async () => {
+    // Enable caching (v6)
+    return withCache(cacheKey, async () => {
         console.log(`[12M Metrics] 🔄 Fetching fresh 12-month data (Batched - NoCache)...`);
 
         // ... (existing logic) ...
@@ -330,10 +364,10 @@ export async function fetch6MonthMetrics() {
                 tinyMonthlyChunks.push([]);
             }
 
-            // Wait 500ms between requests to avoid rate limit (optimized)
+            // Wait 50ms between requests to avoid rate limit (optimized)
             if (i < chunkDates.length - 1) {
-                console.log(`[12M Metrics] ⏸️  Waiting 500ms before next month...`);
-                await new Promise(resolve => setTimeout(resolve, 500));
+                console.log(`[12M Metrics] ⏸️  Waiting 50ms before next month...`);
+                await new Promise(resolve => setTimeout(resolve, 50));
             }
         }
 
@@ -383,9 +417,8 @@ export async function fetch6MonthMetrics() {
         console.log(`[12M Metrics] 📊 Final: LTV=R$ ${ltv.toFixed(2)}, ROI=${roi.toFixed(2)}%`);
 
         return { revenue, ltv, roi, uniqueCustomers, investment };
-    };
 
-    return runFetch();
+    }, CACHE_TTL.LONG); // Cache for 24 hours (Long Term)
 }
 
 /**

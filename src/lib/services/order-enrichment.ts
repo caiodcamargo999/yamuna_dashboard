@@ -1,6 +1,6 @@
 "use server";
 
-import { getTinyOrderDetails } from './tiny';
+import { getTinyOrderDetail } from './tiny';
 import { cacheOrders, CachedOrder } from './customer-cache';
 
 /**
@@ -25,7 +25,7 @@ export async function enrichTinyOrdersBatch(
         // Fetch details for this batch in parallel (but limit concurrency)
         const batchPromises = batch.map(async (orderId) => {
             try {
-                const details = await getTinyOrderDetails(orderId);
+                const details = await getTinyOrderDetail(orderId);
 
                 if (details) {
                     return {
@@ -45,7 +45,7 @@ export async function enrichTinyOrdersBatch(
         });
 
         const batchResults = await Promise.all(batchPromises);
-        const validResults = batchResults.filter((r): r is CachedOrder => r !== null);
+        const validResults = batchResults.filter(r => r !== null) as CachedOrder[];
 
         enrichedOrders.push(...validResults);
 
@@ -129,3 +129,6 @@ export async function getEnrichedOrders(
         ...stats
     };
 }
+
+
+

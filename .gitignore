@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# tokens and sensitive data
+.new-google-token.json
+*google-token*.json
+
+# cache and temporary files
+.cache/
+temp_fix.txt
+test-results.txt

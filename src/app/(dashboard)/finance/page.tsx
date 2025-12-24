@@ -45,7 +45,9 @@ export default async function FinancePage(props: Props) {
             <main className="p-6 space-y-8 overflow-y-auto w-full max-w-[1600px] mx-auto">
 
                 {/* Top KPIs Row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 relative z-10">
+                    <div className="absolute top-[-100px] left-[50%] -translate-x-1/2 w-[600px] h-[300px] bg-sky-500/10 rounded-full blur-[120px] pointer-events-none" />
+
                     {kpiData.map((kpi, idx) => (
                         <FinanceKpiCard key={idx} {...kpi} delay={idx} />
                     ))}

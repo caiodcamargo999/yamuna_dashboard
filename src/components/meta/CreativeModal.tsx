@@ -1,7 +1,6 @@
-"use client";
-
+import { createPortal } from "react-dom";
 import { X, Play } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 interface CreativeModalProps {
     isOpen: boolean;
@@ -12,10 +11,19 @@ interface CreativeModalProps {
         videoUrl?: string;
         embedHtml?: string;
         type: 'image' | 'video';
+        body?: string;
+        title?: string;
     } | null;
 }
 
 export function CreativeModal({ isOpen, onClose, creative }: CreativeModalProps) {
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+        return () => setMounted(false);
+    }, []);
+
     useEffect(() => {
         if (isOpen) {
             document.body.style.overflow = 'hidden';
@@ -28,101 +36,121 @@ export function CreativeModal({ isOpen, onClose, creative }: CreativeModalProps)
         };
     }, [isOpen]);
 
-    if (!isOpen || !creative) return null;
+    if (!mounted || !isOpen || !creative) return null;
 
-    const handleBackdropClick = (e: React.MouseEvent) => {
-        if (e.target === e.currentTarget) {
-            onClose();
-        }
-    };
-
-    return (
+    const modalContent = (
         <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
-            onClick={handleBackdropClick}
+            className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6"
         >
-            <div className="relative bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-auto shadow-2xl">
+            {/* Backdrop */}
+            <div
+                className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+                onClick={onClose}
+            />
+
+            {/* Modal Container */}
+            <div className="relative bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
+
                 {/* Header */}
-                <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 p-4 flex items-center justify-between z-10">
-                    <h3 className="text-lg font-bold text-white truncate max-w-[80%]">
+                <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/95 backdrop-blur rounded-t-2xl">
+                    <h3 className="text-lg font-bold text-white truncate pr-8">
                         {creative.name}
                     </h3>
                     <button
                         onClick={onClose}
-                        className="flex-shrink-0 text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-lg"
+                        className="flex-shrink-0 text-slate-400 hover:text-white hover:bg-slate-800 p-2 rounded-lg transition-colors"
                     >
-                        <X size={24} />
+                        <X size={20} />
                     </button>
                 </div>
 
-                {/* Content */}
-                <div className="p-6">
+                {/* Content - Scrollable Area */}
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-900">
                     {creative.type === "video" ? (
-                        <div className="relative w-full aspect-video bg-slate-950 rounded-lg overflow-hidden flex items-center justify-center">
-                            {/* Facebook videos cannot be embedded due to API restrictions */}
-                            <div className="text-center p-8">
-                                <div className="mb-4">
-                                    {creative.imageUrl && (
-                                        <img
-                                            src={creative.imageUrl}
-                                            alt={creative.name}
-                                            className="w-full h-auto rounded opacity-50"
-                                            referrerPolicy="no-referrer"
-                                        />
-                                    )}
+                        <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center shadow-lg border border-slate-800">
+                            {creative.videoUrl ? (
+                                <video
+                                    src={creative.videoUrl}
+                                    controls
+                                    className="w-full h-full"
+                                    poster={creative.imageUrl}
+                                />
+                            ) : creative.embedHtml ? (
+                                <div
+                                    className="w-full h-full flex items-center justify-center [&>iframe]:w-full [&>iframe]:h-full"
+                                    dangerouslySetInnerHTML={{ __html: creative.embedHtml }}
+                                />
+                            ) : (
+                                <div className="text-center p-8">
+                                    <div className="mb-4 flex justify-center">
+                                        {creative.imageUrl && (
+                                            <img
+                                                src={creative.imageUrl}
+                                                alt={creative.name}
+                                                className="max-h-[200px] w-auto rounded opacity-50 object-contain"
+                                                referrerPolicy="no-referrer"
+                                            />
+                                        )}
+                                    </div>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
+                                        <Play className="w-12 h-12 text-slate-600 mb-2" />
+                                        <p className="text-slate-400 text-sm text-center">
+                                            Visualização de vídeo indisponível via API.
+                                        </p>
+                                    </div>
                                 </div>
-                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm">
-                                    <svg className="w-16 h-16 text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <p className="text-slate-400 text-sm max-w-md">
-                                        Vídeos do Facebook não podem ser reproduzidos aqui por restrições da API.
-                                    </p>
-                                    <p className="text-slate-500 text-xs mt-2">
-                                        Visualize o anúncio diretamente no Meta Ads Manager
-                                    </p>
-                                </div>
-                            </div>
+                            )}
                         </div>
                     ) : creative.imageUrl ? (
-                        <div className="relative w-full">
+                        <div className="relative w-full flex justify-center bg-black/20 rounded-xl p-2 border border-slate-800/50">
                             <img
                                 src={creative.imageUrl}
                                 alt={creative.name}
-                                className="w-full h-auto rounded-lg"
+                                className="max-w-full h-auto max-h-[60vh] object-contain rounded-lg shadow-sm"
                                 referrerPolicy="no-referrer"
                             />
                         </div>
                     ) : (
-                        <div className="flex items-center justify-center h-64 bg-slate-800 rounded-lg">
+                        <div className="flex items-center justify-center h-64 bg-slate-800/50 rounded-lg border border-slate-800 border-dashed">
                             <p className="text-slate-400">Nenhuma mídia disponível</p>
                         </div>
                     )}
 
-                    {/* TEMPORARY DEBUG INFO */}
-                    <div className="mt-4 p-2 bg-slate-950 rounded text-[10px] text-slate-500 font-mono break-all border border-slate-800">
-                        <p>DEBUG INFO:</p>
-                        <p>Type: {creative.type}</p>
-                        <p>Has Video URL: {creative.videoUrl ? "YES" : "NO"}</p>
-                        <p>Has Embed HTML: {creative.embedHtml ? "YES" : "NO"}</p>
-                        {creative.videoUrl && <p>URL: {creative.videoUrl.substring(0, 50)}...</p>}
-                        {creative.embedHtml && <p>Embed Snippet: {creative.embedHtml.substring(0, 50)}...</p>}
-                    </div>
+                    {/* Ad Copy / Text Section */}
+                    {(creative.title || creative.body) && (
+                        <div className="mt-6 space-y-3">
+                            {creative.title && (
+                                <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800">
+                                    <h4 className="text-white font-semibold text-sm uppercase tracking-wider text-slate-500 mb-1">Título</h4>
+                                    <p className="text-white text-lg leading-tight">{creative.title}</p>
+                                </div>
+                            )}
+                            {creative.body && (
+                                <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800">
+                                    <h4 className="text-white font-semibold text-sm uppercase tracking-wider text-slate-500 mb-2">Texto Principal</h4>
+                                    <p className="text-slate-300 text-sm whitespace-pre-wrap leading-relaxed">
+                                        {creative.body}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
-                {/* Footer with metadata */}
-                <div className="border-t border-slate-800 p-4 bg-slate-900/50">
-                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                        <span className="px-2 py-1 bg-slate-800 rounded">
-                            {creative.type === 'video' ? '📹 Vídeo' : '🖼️ Imagem'}
-                        </span>
-                        <span className="px-2 py-1 bg-slate-800 rounded">
-                            Meta Ads Creative
+                {/* Footer */}
+                <div className="flex-shrink-0 p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between rounded-b-2xl">
+                    <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded text-xs font-medium border ${creative.type === 'video'
+                            ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            }`}>
+                            {creative.type === 'video' ? 'VIDEO' : 'IMAGEM'}
                         </span>
                     </div>
                 </div>
             </div>
         </div>
     );
+
+    return createPortal(modalContent, document.body);
 }

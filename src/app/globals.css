@@ -10,45 +10,78 @@
 }
 
 :root {
-  --background: #020617; /* slate-950 */
-  --foreground: #f8fafc; /* slate-50 */
-  
-  --card: rgba(15, 23, 42, 0.6); /* Glassy slate-900 */
+  --background: #020617;
+  /* slate-950 */
+  --foreground: #f8fafc;
+  /* slate-50 */
+
+  --card: rgba(15, 23, 42, 0.6);
+  /* Glassy slate-900 */
   --card-foreground: #f8fafc;
- 
+
   --popover: #0f172a;
   --popover-foreground: #f8fafc;
- 
-  --primary: #38bdf8; /* Sky 400 - Vibrant Accent */
+
+  --primary: #38bdf8;
+  /* Sky 400 - Vibrant Accent */
   --primary-foreground: #020617;
- 
-  --secondary: #1e293b; /* slate-800 */
+
+  --secondary: #1e293b;
+  /* slate-800 */
   --secondary-foreground: #f8fafc;
- 
+
   --muted: #1e293b;
-  --muted-foreground: #94a3b8; /* slate-400 */
- 
-  --accent: #0ea5e9; /* Sky 500 */
+  --muted-foreground: #94a3b8;
+  /* slate-400 */
+
+  --accent: #0ea5e9;
+  /* Sky 500 */
   --accent-foreground: #f8fafc;
- 
+
   --destructive: #ef4444;
   --destructive-foreground: #f8fafc;
 
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(15, 23, 42, 0.5);
   --ring: #38bdf8;
-  
+
   --radius: 0.75rem;
+
+  /* Neon Cyber-DeFi Tokens */
+  --neon-gold: #FDE047;
+  --neon-purple: #8B5CF6;
+  --bg-void: #050510;
 }
 
 body {
-  background-color: var(--background);
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%);
+  background-color: var(--bg-void);
+  background-image:
+    linear-gradient(to bottom, transparent, var(--bg-void) 90%),
+    radial-gradient(circle at 50% -20%, rgba(139, 92, 246, 0.15) 0%, transparent 60%),
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2394a3b8' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.4);
 }
 
 /* Utilities */

@@ -109,28 +109,28 @@ export default async function DashboardPage(props: Props) {
     return (
         <>
             <Header title="Check-in Loja Virtual" />
-            <div className="p-4 lg:p-8 space-y-8 max-w-[1600px] mx-auto">
+            <div className="p-4 lg:p-8 space-y-8 max-w-[1600px] mx-auto overflow-hidden relative">
 
                 {/* Filter Badge */}
-                <div className="flex items-center gap-2 -mt-4 mb-6">
-                    <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span className="text-xs text-slate-400 bg-slate-900/50 px-3 py-1 rounded-full border border-slate-800 backdrop-blur-sm">
+                <div className="flex items-center gap-2 -mt-4 mb-6 relative z-10">
+                    <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+                    <span className="text-xs text-slate-300 bg-[#0B0B1E]/60 px-3 py-1 rounded-full border border-white/10 backdrop-blur-md shadow-lg">
                         Período: <span className="text-sky-400 font-semibold">{displayStart} até {displayEnd}</span>
                     </span>
                 </div>
 
                 {/* Dashboard Grid */}
-                <div className="space-y-10">
+                <div className="space-y-10 relative z-10">
 
 
                     {/* Section 1: Investment & Efficiency */}
-                    <section className="relative">
-                        <div className="absolute -left-4 -top-4 w-20 h-20 bg-orange-500/10 rounded-full blur-2xl pointer-events-none" />
-                        <div className="flex items-center gap-2 mb-4 ml-1">
-                            <div className="p-1.5 rounded-lg bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/20">
-                                <DollarSign className="text-white w-4 h-4" />
+                    <section className="relative group">
+                        <div className="absolute -left-20 -top-20 w-[400px] h-[400px] bg-orange-500/5 rounded-full blur-[100px] pointer-events-none group-hover:bg-orange-500/10 transition-colors duration-700" />
+                        <div className="flex items-center gap-3 mb-4 ml-1 relative z-10">
+                            <div className="p-2 rounded-xl bg-gradient-to-br from-orange-500/20 to-amber-600/20 border border-orange-500/30 shadow-[0_0_15px_rgba(249,115,22,0.1)]">
+                                <DollarSign className="text-orange-400 w-5 h-5" />
                             </div>
-                            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Investimento & Eficiência</h3>
+                            <h3 className="text-sm font-bold text-white uppercase tracking-widest">Investimento & Eficiência</h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <KPIGlassCard label="Investimento" value={data.kpis.investment} prefix="R$ " delay={1} />
@@ -139,13 +139,13 @@ export default async function DashboardPage(props: Props) {
                     </section>
 
                     {/* Section 2: Sales & Revenue */}
-                    <section className="relative">
-                        <div className="absolute -right-4 -top-4 w-20 h-20 bg-sky-500/10 rounded-full blur-2xl pointer-events-none" />
-                        <div className="flex items-center gap-2 mb-4 ml-1">
-                            <div className="p-1.5 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 shadow-lg shadow-sky-500/20">
-                                <ShoppingCart className="text-white w-4 h-4" />
+                    <section className="relative group">
+                        <div className="absolute -right-20 -top-20 w-[400px] h-[400px] bg-sky-500/5 rounded-full blur-[100px] pointer-events-none group-hover:bg-sky-500/10 transition-colors duration-700" />
+                        <div className="flex items-center gap-3 mb-4 ml-1 relative z-10">
+                            <div className="p-2 rounded-xl bg-gradient-to-br from-sky-500/20 to-blue-600/20 border border-sky-500/30 shadow-[0_0_15px_rgba(14,165,233,0.1)]">
+                                <ShoppingCart className="text-sky-400 w-5 h-5" />
                             </div>
-                            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Vendas & Receita</h3>
+                            <h3 className="text-sm font-bold text-white uppercase tracking-widest">Vendas & Receita</h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <KPIGlassCard label="Receita Total" value={data.revenue} prefix="R$ " delay={5} />
@@ -159,13 +159,13 @@ export default async function DashboardPage(props: Props) {
                     </section>
 
                     {/* Section 3: Customers */}
-                    <section className="relative">
-                        <div className="absolute -left-4 -top-4 w-20 h-20 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
-                        <div className="flex items-center gap-2 mb-4 ml-1">
-                            <div className="p-1.5 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg shadow-purple-500/20">
-                                <Users className="text-white w-4 h-4" />
+                    <section className="relative group">
+                        <div className="absolute -left-20 -top-20 w-[400px] h-[400px] bg-purple-500/5 rounded-full blur-[100px] pointer-events-none group-hover:bg-purple-500/10 transition-colors duration-700" />
+                        <div className="flex items-center gap-3 mb-4 ml-1 relative z-10">
+                            <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-600/20 border border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.1)]">
+                                <Users className="text-purple-400 w-5 h-5" />
                             </div>
-                            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Clientes</h3>
+                            <h3 className="text-sm font-bold text-white uppercase tracking-widest">Clientes</h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <KPIGlassCard label="Clientes Adquiridos" value={data.kpis.acquiredCustomers} format="number" delay={9} />
@@ -174,13 +174,13 @@ export default async function DashboardPage(props: Props) {
                     </section>
 
                     {/* Section 4: Growth & Long Term */}
-                    <section className="relative">
-                        <div className="absolute left-1/2 -top-4 w-32 h-20 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-                        <div className="flex items-center gap-2 mb-4 ml-1">
-                            <div className="p-1.5 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/20">
-                                <Rocket className="text-white w-4 h-4" />
+                    <section className="relative group">
+                        <div className="absolute left-1/2 -translate-x-1/2 -top-20 w-[600px] h-[300px] bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none group-hover:bg-indigo-500/10 transition-colors duration-700" />
+                        <div className="flex items-center gap-3 mb-4 ml-1 relative z-10">
+                            <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500/20 to-violet-600/20 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.1)]">
+                                <Rocket className="text-indigo-400 w-5 h-5" />
                             </div>
-                            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-widest">Crescimento (6 Meses)</h3>
+                            <h3 className="text-sm font-bold text-white uppercase tracking-widest">Crescimento (6 Meses)</h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <KPIGlassCard label="Faturamento 6 Meses" value={data.kpis.revenue12m} prefix="R$ " delay={11} />
@@ -192,11 +192,14 @@ export default async function DashboardPage(props: Props) {
                 </div>
 
                 {/* Bottom Section: Funnel & Last Month */}
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 pt-4">
-                    <GlassCard className="xl:col-span-2 min-h-[400px]" delay={12}>
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 pt-4 relative z-10">
+                    <GlassCard className="xl:col-span-2 min-h-[400px] bg-[#0B0B1E]/60 backdrop-blur-xl border-white/5" delay={12}>
                         <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-lg font-semibold text-white">Funil de Vendas</h3>
-                            <div className="px-2 py-1 bg-white/5 rounded text-xs text-slate-400">Tempo Real</div>
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <TrendingUp className="text-orange-400" size={20} />
+                                Funil de Vendas
+                            </h3>
+                            <div className="px-2 py-1 bg-white/5 rounded-lg border border-white/5 text-xs text-slate-300 font-medium">Tempo Real</div>
                         </div>
                         <div className="flex-1 flex items-center justify-center">
                             <FunnelOverview data={funnelData} />
@@ -204,19 +207,23 @@ export default async function DashboardPage(props: Props) {
                     </GlassCard>
 
                     <div className="space-y-6">
-                        <GlassCard delay={13}>
-                            <h3 className="text-lg font-semibold text-white mb-4">Mês Anterior ({data.lastMonthLabel})</h3>
-                            <div className="space-y-6">
-                                <div className="p-4 bg-slate-950/40 rounded-lg border border-white/5">
-                                    <span className="text-sm text-slate-400 block mb-1">Receita Faturada</span>
-                                    <div className="text-2xl font-bold text-emerald-400">
-                                        R$ <AnimatedNumber value={data.revenueLastMonth || 0} format="decimal" />
+                        <GlassCard delay={13} className="bg-[#0B0B1E]/60 backdrop-blur-xl border-white/5">
+                            <h3 className="text-lg font-bold text-white mb-6 border-b border-white/5 pb-4">
+                                Mês Anterior <span className="text-sm font-normal text-slate-400 ml-2">({data.lastMonthLabel})</span>
+                            </h3>
+                            <div className="space-y-4">
+                                <div className="p-5 bg-white/5 rounded-xl border border-white/5 hover:border-emerald-500/30 transition-colors group">
+                                    <span className="text-xs text-slate-400 uppercase tracking-wide block mb-2">Receita Faturada</span>
+                                    <div className="text-3xl font-bold text-white group-hover:text-emerald-400 transition-colors flex items-baseline gap-1">
+                                        <span className="text-lg text-slate-500">R$</span>
+                                        <AnimatedNumber value={data.revenueLastMonth || 0} format="decimal" />
                                     </div>
                                 </div>
-                                <div className="p-4 bg-slate-950/40 rounded-lg border border-white/5">
-                                    <span className="text-sm text-slate-400 block mb-1">Investimento Ads</span>
-                                    <div className="text-2xl font-bold text-white">
-                                        R$ <AnimatedNumber value={data.investmentLastMonth || 0} format="decimal" />
+                                <div className="p-5 bg-white/5 rounded-xl border border-white/5 hover:border-sky-500/30 transition-colors group">
+                                    <span className="text-xs text-slate-400 uppercase tracking-wide block mb-2">Investimento Ads</span>
+                                    <div className="text-3xl font-bold text-white group-hover:text-sky-400 transition-colors flex items-baseline gap-1">
+                                        <span className="text-lg text-slate-500">R$</span>
+                                        <AnimatedNumber value={data.investmentLastMonth || 0} format="decimal" />
                                     </div>
                                 </div>
                             </div>

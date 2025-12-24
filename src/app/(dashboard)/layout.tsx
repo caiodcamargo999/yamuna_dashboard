@@ -1,36 +1,96 @@
+import { cookies } from 'next/headers';
 import { Sidebar } from "@/components/layout/Sidebar";
-import { Header } from "@/components/layout/Header";
+import { createClient } from "@/lib/supabase/server";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // ... existing user parsing code ...
+    const googleIdentity = user?.identities?.find((id: any) => id.provider === 'google');
+    const googleAvatar = googleIdentity?.identity_data?.avatar_url || googleIdentity?.identity_data?.picture;
+
+    // Fetch real role AND tenant_id from DB - OPTIMIZED: Single query
+    let dbRole = null;
+    let initialTenantId = null;
+
+    if (user) {
+        const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('role, tenant_id')
+            .eq('id', user.id)
+            .single();
+        if (profile) {
+            dbRole = profile.role;
+            initialTenantId = profile.tenant_id;
+        }
+    }
+
+    const userData = user ? {
+        name: user.user_metadata.full_name || user.user_metadata.name || 'Usuário',
+        email: user.email || '',
+        avatar: user.user_metadata.avatar_url || user.user_metadata.picture || googleAvatar || '',
+        role: dbRole === 'super_admin' ? 'Super Admin' : (user.user_metadata.role || 'Cliente (Milennials)')
+    } : {
+        name: 'Yamuna',
+        email: '',
+        avatar: '',
+        role: 'Cliente (Milennials)'
+    };
+
+    // --- TENANT CONTEXT LOGIC (OPTIMIZED) ---
+    const cookieStore = await cookies();
+    const impersonatedTenantId = cookieStore.get('active_tenant_id')?.value;
+    const isSuperAdmin = dbRole === 'super_admin';
+
+    let targetTenantIdOrSlug = impersonatedTenantId || initialTenantId;
+
+    // If Super Admin has NO context, default to 'Yamuna' for now so they see something
+    if (isSuperAdmin && !targetTenantIdOrSlug) {
+        targetTenantIdOrSlug = 'yamuna';
+    }
+
+    // Default modules for fallback (prevents empty sidebar)
+    let modules: string[] = ['dashboard', 'meta_ads', 'google_ads', 'tiny_erp', 'wake_commerce', 'finance', 'rfm', 'ga4'];
+
+    if (targetTenantIdOrSlug) {
+        // Fetch modules for this tenant (non-blocking, with timeout)
+        try {
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetTenantIdOrSlug);
+
+            const query = supabase.from('tenants').select('modules');
+
+            if (isUuid) {
+                query.eq('id', targetTenantIdOrSlug);
+            } else {
+                query.eq('slug', targetTenantIdOrSlug);
+            }
+
+            const { data: tenantData } = await query.single();
+
+            if (tenantData?.modules && Array.isArray(tenantData.modules) && tenantData.modules.length > 0) {
+                modules = tenantData.modules;
+            }
+        } catch (e) {
+            console.warn('[Layout] Failed to fetch modules, using default:', e);
+            // Keep default modules
+        }
+    }
+
     return (
-        <div className="flex min-h-screen bg-slate-950">
-            <Sidebar />
-            <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
-                {/* Note: The Header title will need to be dynamic. 
-            For now, we place the Header in the Layout, but realistically 
-            each page might want to control its title or we use a context.
-            For simplicity, I'll pass a generic title or let the page render the header if needed.
-            However, to match the design (Sticky Header), it's good in Layout.
-            I'll make it generic "Dashboard" for now, or move it to page level if needed.
-            Actually, looking at the design, the header title changes "Meta Ads", "Check-in".
-            So it's better to having the Header inside the Layout but updateable, OR 
-            just put the Header in the Page itself if we want full control.
-            
-            Let's put the Header here with a default, but individual pages might override or we use a Client Component context.
-            Easiest approach for MVP: Render Header in Layout, but pages can't easily change it without Context.
-            
-            Alternative: The Layout ONLY handles the Sidebar and the Main Content Container. 
-            The Header is part of the Page or a separate component included in every page.
-            BUT, to keep the layout consistent (scroll behavior), top bar usually stays.
-            
-            Let's stick to: Layout has Sidebar. 
-            The `children` (Page) will render the Header + Content.
-            This gives maximum flexibility for the "Title".
-        */}
+        <div className="min-h-screen bg-transparent">
+            {/* 
+               Sidebar is now FIXED (h-screen, sticky).
+               We need to add padding-left to the main content to avoid overlap.
+               Sidebar width is w-[260px] -> pl-[260px]
+            */}
+            <Sidebar user={userData} modules={modules} />
+
+            <div className="lg:pl-[260px] w-full min-h-screen flex flex-col">
                 {children}
             </div>
         </div>

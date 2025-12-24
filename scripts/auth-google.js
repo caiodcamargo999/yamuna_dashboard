@@ -53,12 +53,28 @@ const server = http.createServer(async (req, res) => {
             }
 
             console.log('----------------------------------------');
+            console.log('----------------------------------------');
             console.log('SUCESSO! Copie e salve estas chaves no seu .env.local:');
             console.log('----------------------------------------');
             console.log(`GOOGLE_CLIENT_ID=${CLIENT_ID}`);
             console.log(`GOOGLE_CLIENT_SECRET=${CLIENT_SECRET}`);
             console.log(`GOOGLE_REFRESH_TOKEN=${tokens.refresh_token}`);
             console.log('----------------------------------------\n');
+
+            // Save to file for automation
+            const fs = require('fs');
+            const path = require('path');
+            const tokenData = {
+                GOOGLE_CLIENT_ID: CLIENT_ID,
+                GOOGLE_CLIENT_SECRET: CLIENT_SECRET,
+                GOOGLE_REFRESH_TOKEN: tokens.refresh_token
+            };
+            fs.writeFileSync(
+                path.join(__dirname, '..', '.new-google-token.json'),
+                JSON.stringify(tokenData, null, 2)
+            );
+            console.log('✅ Credenciais salvas em .new-google-token.json');
+
             process.exit(0);
         } catch (error) {
             console.error('Erro ao trocar token:', error.message);

@@ -58,21 +58,21 @@ export const MENU_CONFIG: MenuItem[] = [
     {
         key: 'funil_loja',
         label: 'Funil Loja Virtual',
-        path: '/funil',
+        path: '/funnel',  // ✅ CORRIGIDO: era /funil
         icon: Filter,
         moduleNeeded: 'wake_commerce'
     },
     {
         key: 'finance',
         label: 'Indicadores Financeiros',
-        path: '/financeiro',
+        path: '/finance',  // ✅ CORRIGIDO: era /financeiro
         icon: DollarSign,
         moduleNeeded: 'finance'
     },
     {
         key: 'curva_abc',
         label: 'Curva ABC (Tiny)',
-        path: '/curva-abc',
+        path: '/products',  // ✅ CORRIGIDO: era /curva-abc
         icon: BarChart,
         moduleNeeded: 'tiny_erp'
     },
@@ -100,7 +100,7 @@ export const MENU_CONFIG: MenuItem[] = [
     {
         key: 'api_diag',
         label: 'Diagnóstico de API',
-        path: '/api-status',
+        path: '/diagnostics',  // ✅ CORRIGIDO: era /api-status
         icon: Activity,
         moduleNeeded: 'dashboard' // Everyone sees this for now or maybe admin only? Keeping basic
     }

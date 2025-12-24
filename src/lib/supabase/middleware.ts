@@ -77,6 +77,19 @@ export async function updateSession(request: NextRequest) {
             return NextResponse.redirect(url)
         }
 
+        // Redirect authenticated users from public pages to dashboard
+        if (
+            user &&
+            (request.nextUrl.pathname === '/' ||
+                request.nextUrl.pathname === '/login' ||
+                request.nextUrl.pathname === '/register')
+        ) {
+            console.log('[Middleware] ✅ User autenticado acessando página pública, redirecionando para /dashboard');
+            const url = request.nextUrl.clone()
+            url.pathname = '/dashboard'
+            return NextResponse.redirect(url)
+        }
+
         console.log('[Middleware] ✅ User autenticado, permitindo acesso');
 
         return supabaseResponse

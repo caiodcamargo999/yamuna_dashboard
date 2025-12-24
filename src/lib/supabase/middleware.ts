@@ -78,10 +78,10 @@ export async function updateSession(request: NextRequest) {
         }
 
         // Redirect authenticated users from public pages to dashboard
+        // NOTE: We don't redirect from /login to allow OAuth flow to complete
         if (
             user &&
             (request.nextUrl.pathname === '/' ||
-                request.nextUrl.pathname === '/login' ||
                 request.nextUrl.pathname === '/register')
         ) {
             console.log('[Middleware] ✅ User autenticado acessando página pública, redirecionando para /dashboard');

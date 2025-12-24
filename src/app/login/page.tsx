@@ -1,11 +1,14 @@
+'use client';
+
 import { login, signInWithGoogle } from './actions'
 import { NeonButton } from '@/components/ui/NeonButton'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
-export default async function LoginPage(props: {
-    searchParams: Promise<{ message?: string; error?: string }>
-}) {
-    const searchParams = await props.searchParams;
+export default function LoginPage() {
+    const searchParams = useSearchParams();
+    const message = searchParams.get('message');
+    const error = searchParams.get('error');
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-[#050510] relative overflow-hidden px-4 py-12 sm:px-6 lg:px-8 selection:bg-purple-500/30 selection:text-yellow-400">
@@ -32,15 +35,15 @@ export default async function LoginPage(props: {
                         </p>
                     </div>
 
-                    {searchParams?.message && (
+                    {message && (
                         <div className="mb-6 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-3 rounded-lg text-sm text-center">
-                            {searchParams.message}
+                            {message}
                         </div>
                     )}
 
-                    {searchParams?.error && (
+                    {error && (
                         <div className="mb-6 bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm text-center">
-                            {searchParams.error}
+                            {error}
                         </div>
                     )}
 

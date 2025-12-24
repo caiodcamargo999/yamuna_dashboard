@@ -58,10 +58,10 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
         // Selected period data
         withCache(`funnel:selected:${startStr}:${endStr}`, async () => {
             const [ga4, tiny, wake, products] = await Promise.all([
-                getGoogleAnalyticsData(startStr, endStr),
-                getTinyOrders(startStr, endStr),
-                getWakeOrders(startStr, endStr),
-                getTopProductsByPeriod(startStr, endStr, 10)
+                getGoogleAnalyticsData(startStr, endStr).catch(err => { console.error('[Funnel] GA4 error:', err); return null; }),
+                getTinyOrders(startStr, endStr).catch(err => { console.error('[Funnel] Tiny error:', err); return []; }),
+                getWakeOrders(startStr, endStr).catch(err => { console.error('[Funnel] Wake error:', err); return []; }),
+                getTopProductsByPeriod(startStr, endStr, 10).catch(err => { console.error('[Funnel] Products error:', err); return []; })
             ]);
             return { ga4, tiny: tiny || [], wake: wake || [], products };
         }, CACHE_TTL.MEDIUM),

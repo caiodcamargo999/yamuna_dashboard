@@ -75,7 +75,7 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
             console.error("[Dashboard] 🚨 Critical Historical Data Error:", e);
             return [];
         }
-    }, CACHE_TTL.HOUR);
+    }, CACHE_TTL.FOUR_HOURS); // 4h cache for historical data (changes rarely)
 
     // 2. Fetch Current Period Data (with cache)
     const periodData = await withCache(cacheKey, async () => {
@@ -101,7 +101,7 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
 
         console.log(`[Dashboard] ✅ Fresh data fetched successfully (Tiny: ${tinyOrders?.length || 0} orders)`);
         return { googleData, tinyOrders: tinyOrders || [], metaData, wakeOrders: wakeOrders || [] };
-    }, CACHE_TTL.MEDIUM); // 5 minutes - good balance for dashboard freshness
+    }, CACHE_TTL.LONG); // 15 minutes - reduced API calls for better performance
 
     console.log(`[Dashboard] 📦 Data retrieved (from cache or fresh)`);
 
@@ -418,7 +418,7 @@ export async function fetch6MonthMetrics() {
 
         return { revenue, ltv, roi, uniqueCustomers, investment };
 
-    }, CACHE_TTL.LONG); // Cache for 24 hours (Long Term)
+    }, CACHE_TTL.FOUR_HOURS); // Cache for 4 hours (changes slowly)
 }
 
 /**
@@ -463,7 +463,7 @@ export async function fetchLastMonthData() {
         console.log(`[LastMonth] ✅ Investment: R$ ${investment.toFixed(2)}`);
 
         return { revenue, investment, label };
-    }, CACHE_TTL.HOUR); // Cache for 1 hour
+    }, CACHE_TTL.FOUR_HOURS); // Cache for 4 hours (month data doesn't change)
 }
 
 /**

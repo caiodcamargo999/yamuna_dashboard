@@ -95,7 +95,8 @@ export default function LoginPage() {
                         </div>
 
                         <button
-                            formAction={signInWithGoogle}
+                            type="button"
+                            onClick={() => signInWithGoogle()}
                             className="flex w-full items-center justify-center gap-3 rounded-xl bg-white px-3 py-3 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#24292F] transition-colors"
                         >
                             <svg className="h-5 w-5" viewBox="0 0 24 24">

@@ -6,6 +6,9 @@ import { DollarSign, ShoppingCart, Users, Rocket, TrendingUp, TrendingDown } fro
 import { format, subDays, parseISO } from "date-fns";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { SixMonthMetricsSection } from "@/components/dashboard/SixMonthMetrics";
+import { LastMonthSection } from "@/components/dashboard/LastMonthData";
+import { SalesRetentionGroup, CustomerRetentionGroup } from "@/components/dashboard/RetentionMetrics";
 
 // Use ISR (Incremental Static Regeneration) for better performance
 // Revalidate every 5 minutes - shows cached version instantly while updating in background
@@ -27,8 +30,8 @@ function KPIGlassCard({
     const isGood = invertTrend ? !isPositive : isPositive;
 
     // Determine trend color
-    const trendColor = isGood ? "text-emerald-400" : "text-rose-400";
-    const TrendIcon = isPositive ? TrendingUp : TrendingDown;
+    // const trendColor = isGood ? "text-emerald-400" : "text-rose-400"; // Unused
+    // const TrendIcon = isPositive ? TrendingUp : TrendingDown; // Unused
 
     return (
         <GlassCard delay={delay} className="flex flex-col justify-between h-[120px] group">
@@ -113,7 +116,7 @@ export default async function DashboardPage(props: Props) {
             <div className="p-4 lg:p-8 space-y-8 max-w-[1600px] mx-auto overflow-hidden relative">
 
                 {/* Filter Badge */}
-                <div className="flex items-center gap-2 -mt-4 mb-6 relative z-10">
+                <div className="flex items-center gap-2 mt-4 lg:-mt-4 mb-6 relative z-10">
                     <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
                     <span className="text-xs text-slate-300 bg-[#0B0B1E]/60 px-3 py-1 rounded-full border border-white/10 backdrop-blur-md shadow-lg">
                         Período: <span className="text-sky-400 font-semibold">{displayStart} até {displayEnd}</span>
@@ -139,6 +142,8 @@ export default async function DashboardPage(props: Props) {
                         </div>
                     </section>
 
+
+
                     {/* Section 2: Sales & Revenue */}
                     <section className="relative group">
                         <div className="absolute -right-20 -top-20 w-[400px] h-[400px] bg-sky-500/5 rounded-full blur-[100px] pointer-events-none group-hover:bg-sky-500/10 transition-colors duration-700" />
@@ -151,9 +156,10 @@ export default async function DashboardPage(props: Props) {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <KPIGlassCard label="Receita Total" value={data.revenue} prefix="R$ " delay={5} />
                             <KPIGlassCard label="Ticket Médio" value={data.kpis.ticketAvg} prefix="R$ " delay={6} />
-                            <KPIGlassCard label="Ticket Médio Novos" value={data.kpis.ticketAvgNew} prefix="R$ " delay={7} />
-                            <KPIGlassCard label="Retenção" value={data.kpis.retentionRevenue} prefix="R$ " delay={8} />
-                            <KPIGlassCard label="Receita Nova" value={data.kpis.newRevenue} prefix="R$ " delay={9} />
+
+                            {/* Streamed Retention Metrics (Ticket New, Retention, New Revenue) */}
+                            <SalesRetentionGroup startDate={startDate} endDate={endDate} />
+
                             <KPIGlassCard label="Receita B2B" value={data.b2b?.b2bRevenue || 0} prefix="R$ " delay={10} />
                             <KPIGlassCard label="Receita B2C" value={data.b2b?.b2cRevenue || 0} prefix="R$ " delay={11} />
                         </div>
@@ -169,26 +175,13 @@ export default async function DashboardPage(props: Props) {
                             <h3 className="text-sm font-bold text-white uppercase tracking-widest">Clientes</h3>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <KPIGlassCard label="Clientes Adquiridos" value={data.kpis.acquiredCustomers} format="number" delay={9} />
-                            <KPIGlassCard label="Custo de Aquisição de Clientes" value={data.kpis.cac} prefix="R$ " delay={10} invertTrend />
+                            {/* Streamed Customer Metrics (Acquired, CAC) */}
+                            <CustomerRetentionGroup startDate={startDate} endDate={endDate} />
                         </div>
                     </section>
 
-                    {/* Section 4: Growth & Long Term */}
-                    <section className="relative group">
-                        <div className="absolute left-1/2 -translate-x-1/2 -top-20 w-[600px] h-[300px] bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none group-hover:bg-indigo-500/10 transition-colors duration-700" />
-                        <div className="flex items-center gap-3 mb-4 ml-1 relative z-10">
-                            <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500/20 to-violet-600/20 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.1)]">
-                                <Rocket className="text-indigo-400 w-5 h-5" />
-                            </div>
-                            <h3 className="text-sm font-bold text-white uppercase tracking-widest">Crescimento (6 Meses)</h3>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <KPIGlassCard label="Faturamento 6 Meses" value={data.kpis.revenue12m} prefix="R$ " delay={11} />
-                            <KPIGlassCard label="LTV 6 Meses" value={data.kpis.ltv12m} prefix="R$ " delay={12} />
-                            <KPIGlassCard label="ROI 6 Meses" value={data.kpis.roi12m} suffix="x" format="decimal" delay={13} />
-                        </div>
-                    </section>
+                    {/* Section 4: Growth & Long Term (STREAMED) */}
+                    <SixMonthMetricsSection />
 
                 </div>
 
@@ -208,27 +201,8 @@ export default async function DashboardPage(props: Props) {
                     </GlassCard>
 
                     <div className="space-y-6">
-                        <GlassCard delay={13} className="bg-[#0B0B1E]/60 backdrop-blur-xl border-white/5">
-                            <h3 className="text-lg font-bold text-white mb-6 border-b border-white/5 pb-4">
-                                Mês Anterior <span className="text-sm font-normal text-slate-400 ml-2">({data.lastMonthLabel})</span>
-                            </h3>
-                            <div className="space-y-4">
-                                <div className="p-5 bg-white/5 rounded-xl border border-white/5 hover:border-emerald-500/30 transition-colors group">
-                                    <span className="text-xs text-slate-400 uppercase tracking-wide block mb-2">Receita Faturada</span>
-                                    <div className="text-3xl font-bold text-white group-hover:text-emerald-400 transition-colors flex items-baseline gap-1">
-                                        <span className="text-lg text-slate-500">R$</span>
-                                        <AnimatedNumber value={data.revenueLastMonth || 0} format="decimal" />
-                                    </div>
-                                </div>
-                                <div className="p-5 bg-white/5 rounded-xl border border-white/5 hover:border-sky-500/30 transition-colors group">
-                                    <span className="text-xs text-slate-400 uppercase tracking-wide block mb-2">Investimento Ads</span>
-                                    <div className="text-3xl font-bold text-white group-hover:text-sky-400 transition-colors flex items-baseline gap-1">
-                                        <span className="text-lg text-slate-500">R$</span>
-                                        <AnimatedNumber value={data.investmentLastMonth || 0} format="decimal" />
-                                    </div>
-                                </div>
-                            </div>
-                        </GlassCard>
+                        {/* Streamed Last Month Data */}
+                        <LastMonthSection />
                     </div>
                 </div>
             </div>

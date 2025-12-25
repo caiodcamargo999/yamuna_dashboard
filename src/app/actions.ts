@@ -51,13 +51,30 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     console.log(`[Dashboard] 🛠️ Checking cache for key: ${cacheKey}...`);
 
     // PRE-CALCULATE HISTORICAL DATES
-    const historicalStartDate = format(subDays(currentStart, 365), "yyyy-MM-dd");
+    // OPTIMIZATION: Use 180 days (6 months) instead of 365.
+    // This provides enough data for "Growth 6 Months" checks while being 2x faster than 365 days.
+    const historicalStartDate = format(subDays(currentStart, 180), "yyyy-MM-dd");
     const historicalEndDate = format(subDays(currentStart, 1), "yyyy-MM-dd");
-    const historicalCacheKey = `historical:v5:365d:${historicalStartDate}:${historicalEndDate}`;
+    const historicalCacheKey = `historical:v8:180d:${historicalStartDate}:${historicalEndDate}`;
 
-    // 🚀 OPTIMIZATION: Start all independent fetches immediately
-    const data6mPromise = fetch6MonthMetrics();
-    const lastMonthDataPromise = fetchLastMonthData();
+    // 🚀 OPTIMIZATION: Start independent fetches (SERIALIZED to avoid Rate Limits)
+    // We don't await them yet, but we serialize their start if possible, or just accept they run in parallel but we'll add delays inside them.
+    // For now, let's keep them parallel but make sure they don't crash the main thread.
+
+    // DEPRECATED in Main Fetch: These are now fetched by their own components (SixMonthMetrics & LastMonthData)
+    // to allow Streaming/Suspense to work properly.
+    /*
+    const data6mPromise = fetch6MonthMetrics().catch(e => {
+        console.error("[Dashboard] ⚠️ 6M Metrics Failed:", e);
+        return { revenue: 0, ltv: 0, roi: 0, uniqueCustomers: 0, investment: 0 };
+    });
+
+    const lastMonthDataPromise = fetchLastMonthData().catch(e => {
+        console.error("[Dashboard] ⚠️ Last Month Metrics Failed:", e);
+        return { revenue: 0, investment: 0, label: "Mês Anterior" };
+    });
+    */
+
     const historicalDataPromise = withCache(historicalCacheKey, async () => {
         try {
             const [historicalTiny, historicalWake] = await Promise.all([
@@ -75,7 +92,10 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
             console.error("[Dashboard] 🚨 Critical Historical Data Error:", e);
             return [];
         }
-    }, CACHE_TTL.FOUR_HOURS); // 4h cache for historical data (changes rarely)
+    }, CACHE_TTL.FOUR_HOURS); // 4h cache
+
+    // ... (rest of function)
+
 
     // 2. Fetch Current Period Data (with cache)
     const periodData = await withCache(cacheKey, async () => {
@@ -126,6 +146,9 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     const allOrders = mergeOrders(tinyOrders, wakeOrders || []);
     console.log(`[Dashboard] 📦 Orders: Tiny=${tinyOrders.length}, Wake=${wakeOrders?.length || 0}, Merged=${allOrders.length}`);
 
+    // Calculate B2B vs B2C segmentation (moved up as it is fast and needed for basic response)
+    const b2bSegmentation = segmentB2BvsB2C(allOrders);
+
     // 4. Calculate Core Metrics
     const totalRevenue = allOrders.reduce((acc, order) => acc + (order.total || 0), 0);
     const totalOrders = allOrders.length;
@@ -138,139 +161,34 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     console.log(`[Dashboard] 💰 Revenue: R$ ${totalRevenue.toFixed(2)}`);
     console.log(`[Dashboard] 💸 Investment: R$ ${totalInvestment.toFixed(2)} (Google: ${googleAdsCost.toFixed(2)}, Meta: ${metaAdsCost.toFixed(2)})`);
 
-    // 5. Calculate New Revenue vs Retention with REAL DATA
-    // Fetch historical orders (365 days/1 year before the selected period) to determine new vs returning customers
-    // This ensures accurate identification of returning customers even if they haven't purchased in 6+ months
-    // Fetch historical orders (365 days/1 year before the selected period) to determine new vs returning customers
-    // This ensures accurate identification of returning customers even if they haven't purchased in 6+ months
-
-    // PREFLIGHT ALREADY STARTED AT TOP
-    console.log(`[Dashboard] 📊 Fetching historical data: ${historicalStartDate} to ${historicalEndDate}`);
-
-    // Fetch historical orders efficiently (only need customer IDs, not full details)
-    const historicalData = await historicalDataPromise;
-
-    console.log(`[Dashboard] 📦 Historical orders found: ${historicalData.length}`);
-
-    // Calculate real segmentation using historical data
-    console.log(`[Dashboard] 🔍 STARTING calculateRevenueSegmentation with:`);
-    console.log(`[Dashboard]   Current period orders: ${allOrders.length}`);
-    console.log(`[Dashboard]   Historical orders: ${historicalData.length}`);
-
-    const segmentation = calculateRevenueSegmentation(allOrders, historicalData);
-
-    // Verification using existing totalRevenue from line 78
-    const calculatedTotal = segmentation.newRevenue + segmentation.retentionRevenue;
-
-    console.log(`[Dashboard] 💰 Revenue Verification:`);
-    console.log(`[Dashboard]   - Total orders: ${allOrders.length}`);
-    console.log(`[Dashboard]   - Total Revenue (sum): R$ ${totalRevenue.toFixed(2)}`);
-    console.log(`[Dashboard]   - New Revenue: R$ ${segmentation.newRevenue.toFixed(2)}`);
-    console.log(`[Dashboard]   - Retention Revenue: R$ ${segmentation.retentionRevenue.toFixed(2)}`);
-    console.log(`[Dashboard]   - Calculated Total: R$ ${calculatedTotal.toFixed(2)}`);
-    console.log(`[Dashboard]   - Match: ${Math.abs(totalRevenue - calculatedTotal) < 1 ? '✅ OK' : '❌ MISMATCH'}`);
-
-    console.log(`[Dashboard] 👥 New Customers (Real): ${segmentation.newCustomersCount}`);
-    console.log(`[Dashboard] 🔄 Returning Customers (Real): ${segmentation.returningCustomersCount}`);
-    console.log(`[Dashboard] 💵 New Revenue (Real): R$ ${segmentation.newRevenue.toFixed(2)}`);
-    console.log(`[Dashboard] 💵 Retention Revenue (Real): R$ ${segmentation.retentionRevenue.toFixed(2)}`);
-
-    // Calculate B2B vs B2C segmentation
-    const b2bSegmentation = segmentB2BvsB2C(allOrders);
-    console.log(`\n[Dashboard] 🏢 B2B vs B2C Segmentation:`);
-    console.log(`[Dashboard]   B2B (CNPJ - Empresas):`);
-    console.log(`[Dashboard]     - Revenue: R$ ${b2bSegmentation.b2bRevenue.toFixed(2)}`);
-    console.log(`[Dashboard]     - Orders: ${b2bSegmentation.b2bOrders}`);
-    console.log(`[Dashboard]     - Customers: ${b2bSegmentation.b2bCustomers}`);
-    console.log(`[Dashboard]     - Avg Ticket: R$ ${b2bSegmentation.b2bAverageTicket.toFixed(2)}`);
-    console.log(`[Dashboard]   B2C (CPF - Pessoa Física):`);
-    console.log(`[Dashboard]     - Revenue: R$ ${b2bSegmentation.b2cRevenue.toFixed(2)}`);
-    console.log(`[Dashboard]     - Orders: ${b2bSegmentation.b2cOrders}`);
-    console.log(`[Dashboard]     - Customers: ${b2bSegmentation.b2cCustomers}`);
-    console.log(`[Dashboard]     - Avg Ticket: R$ ${b2bSegmentation.b2cAverageTicket.toFixed(2)}`);
-
-    // FALLBACK: If retention is 0 (customer matching failed), use REAL data from Wake
-    let finalSegmentation = segmentation;
-
-    if (segmentation.retentionRevenue === 0 && totalRevenue > 0) {
-        console.log(`[Dashboard] ⚠️ Customer matching failed - calculating real ratio from Wake data`);
-
-        // Calculate REAL ratio from Wake orders (which have customer emails)
-        const wakeOrdersWithEmail = (wakeOrders || []).filter(o => o.customerEmail);
-
-        if (wakeOrdersWithEmail.length > 10) {
-            // We have enough Wake data - use it to calculate real ratio
-            const wakeSegmentation = calculateRevenueSegmentation(wakeOrdersWithEmail, historicalData);
-
-            const wakeRetentionRatio = wakeSegmentation.retentionRevenue /
-                (wakeSegmentation.retentionRevenue + wakeSegmentation.newRevenue || 1);
-
-            console.log(`[Dashboard] 📊 Wake Analysis: ${wakeOrdersWithEmail.length} orders with email`);
-            console.log(`[Dashboard] 📊 Wake Retention Ratio: ${(wakeRetentionRatio * 100).toFixed(1)}%`);
-
-            // Apply Wake's real ratio to total revenue
-            const retentionRatio = wakeRetentionRatio > 0 ? wakeRetentionRatio : 0.80;
-
-            const estimatedRetentionRevenue = totalRevenue * retentionRatio;
-            const estimatedNewRevenue = totalRevenue * (1 - retentionRatio);
-
-            const uniqueCustomers = getUniqueCustomerCount(allOrders);
-            const estimatedReturningCustomers = Math.round(uniqueCustomers * retentionRatio);
-            const estimatedNewCustomers = Math.round(uniqueCustomers * (1 - retentionRatio));
-
-            finalSegmentation = {
-                retentionRevenue: estimatedRetentionRevenue,
-                newRevenue: estimatedNewRevenue,
-                returningCustomersCount: estimatedReturningCustomers,
-                newCustomersCount: estimatedNewCustomers
-            };
-
-            console.log(`[Dashboard] 📊 Using REAL Wake ratio: ${(retentionRatio * 100).toFixed(1)}% retention`);
-            console.log(`[Dashboard] 💵 Estimated Retention: R$ ${estimatedRetentionRevenue.toFixed(2)}`);
-            console.log(`[Dashboard] 💵 Estimated New: R$ ${estimatedNewRevenue.toFixed(2)}`);
-        } else {
-            // Not enough Wake data - use conservative estimate
-            console.log(`[Dashboard] ⚠️ Not enough Wake data (${wakeOrdersWithEmail.length} orders), using 80/20 estimate`);
-
-            const retentionRatio = 0.80;
-            const estimatedRetentionRevenue = totalRevenue * retentionRatio;
-            const estimatedNewRevenue = totalRevenue * (1 - retentionRatio);
-
-            const uniqueCustomers = getUniqueCustomerCount(allOrders);
-            const estimatedReturningCustomers = Math.round(uniqueCustomers * retentionRatio);
-            const estimatedNewCustomers = Math.round(uniqueCustomers * (1 - retentionRatio));
-
-            finalSegmentation = {
-                retentionRevenue: estimatedRetentionRevenue,
-                newRevenue: estimatedNewRevenue,
-                returningCustomersCount: estimatedReturningCustomers,
-                newCustomersCount: estimatedNewCustomers
-            };
-        }
-    }
-
-    // 6. Derived KPIs
+    // 5. Derived KPIs (Basic)
     const ticketAvg = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-    const ticketAvgNew = finalSegmentation.newCustomersCount > 0
-        ? finalSegmentation.newRevenue / finalSegmentation.newCustomersCount
-        : 0;
-
-    const acquiredCustomers = finalSegmentation.newCustomersCount;
-    const cac = acquiredCustomers > 0 ? totalInvestment / acquiredCustomers : 0;
-
     const costPercentage = totalRevenue > 0 ? (totalInvestment / totalRevenue) * 100 : 0;
 
+    // Placeholder values for Retention Metrics (fetched via streaming now)
+    const ticketAvgNew = 0;
+    const acquiredCustomers = 0;
+    const cac = 0;
+    const retentionRevenue = 0;
+    const newRevenue = 0;
+
+    // Log basic completion
+    console.log(`[Dashboard] 🚀 Basic data ready. returning instantly.`);
+
     // 7. Start fetch for Last 6 Months & Last Month concurrently
-    console.log(`[Dashboard] 🚀 Waiting for concurrent fetches (started at top)...`);
+    console.log(`[Dashboard] 🚀 Main data ready. Skipping secondary metrics for streaming...`);
     // const data6mPromise = fetch6MonthMetrics(); // Moved to top
     // const lastMonthDataPromise = fetchLastMonthData(); // Moved to top
 
     // 8. Wait for all data
-    const [data6m, lastMonthData] = await Promise.all([data6mPromise, lastMonthDataPromise]);
+    // const [data6m, lastMonthData] = await Promise.all([data6mPromise, lastMonthDataPromise]);
 
-    console.log(`[Dashboard] 📊 6M Data returned: revenue=${data6m.revenue}, ltv=${data6m.ltv}, roi=${data6m.roi}`);
-    console.log(`[Dashboard] 📊 LastMonth Data: revenue=${lastMonthData.revenue}`);
+    // Default values since these are now handled by streaming components
+    const data6m = { revenue: 0, ltv: 0, roi: 0 };
+    const lastMonthData = { revenue: 0, investment: 0, label: '-' };
+
+    console.log(`[Dashboard] 📊 6M Data skipped (handled by client component)`);
+    console.log(`[Dashboard] 📊 LastMonth Data skipped (handled by client component)`);
 
     // 9. Funnel data from GA4
     const sessions = googleData?.sessions || 0;
@@ -284,8 +202,8 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
             costPercentage,
             ticketAvg,
             ticketAvgNew,
-            retentionRevenue: finalSegmentation.retentionRevenue,
-            newRevenue: finalSegmentation.newRevenue,
+            retentionRevenue,
+            newRevenue,
             acquiredCustomers,
             cac,
             revenue12m: data6m.revenue,
@@ -310,6 +228,76 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
         source: 'Tiny + Wake + GA4 + Meta',
         b2b: b2bSegmentation, // B2B vs B2C metrics
     };
+}
+
+/**
+ * Fetch Retention & Segmentation Metrics (Heavy Operation)
+ * Uses historical data (180 days) + Current Data to calculate New vs Returning
+ */
+export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "today") {
+    // 1. Date Setup
+    const currentStart = startDate === "30daysAgo" ? subDays(new Date(), 30) : parseISO(startDate);
+    const currentEnd = endDate === "today" ? new Date() : parseISO(endDate);
+    const startStr = format(currentStart, "yyyy-MM-dd");
+    const endStr = format(currentEnd, "yyyy-MM-dd");
+
+    // Cache key for this specific heavy calculation
+    const cacheKey = `retention:v2:${startStr}:${endStr}`;
+
+    console.log(`[Retention] 📊 Starting heavy retention fetch: ${startStr} to ${endStr}`);
+
+    return withCache(cacheKey, async () => {
+        // Fetch Current Orders (needed for segmentation)
+        const [tinyRes, wakeRes, metaRes, googleRes] = await Promise.allSettled([
+            getTinyOrders(startStr, endStr),
+            getWakeOrders(startStr, endStr),
+            getMetaAdsInsights(startStr, endStr), // Needed for CAC
+            getGoogleAnalyticsData(startStr, endStr) // Needed for Investment
+        ]);
+
+        const currentTiny = tinyRes.status === 'fulfilled' ? tinyRes.value : [];
+        const currentWake = wakeRes.status === 'fulfilled' ? wakeRes.value : [];
+        const allOrders = mergeOrders(currentTiny, currentWake);
+
+        const metaCost = metaRes.status === 'fulfilled' ? metaRes.value?.spend || 0 : 0;
+        const googleCost = googleRes.status === 'fulfilled' ? googleRes.value?.investment || 0 : 0;
+        const totalInvestment = metaCost + googleCost;
+        const totalRevenue = allOrders.reduce((acc, o) => acc + (o.total || 0), 0);
+
+        // Fetch Historical Orders (180 days)
+        const historicalStart = format(subDays(currentStart, 180), "yyyy-MM-dd");
+        const historicalEnd = format(subDays(currentStart, 1), "yyyy-MM-dd");
+
+        console.log(`[Retention] 🕒 Fetching historical context: ${historicalStart} to ${historicalEnd}`);
+
+        const [histTiny, histWake] = await Promise.all([
+            getTinyOrders(historicalStart, historicalEnd).catch(() => []),
+            getWakeOrders(historicalStart, historicalEnd).catch(() => [])
+        ]);
+        const historicalData = mergeOrders(histTiny, histWake);
+
+        // Segmentation Logic
+        console.log(`[Retention] 🔢 Calculating segmentation...`);
+        const segmentation = calculateRevenueSegmentation(allOrders, historicalData);
+
+        // Calculate Derived Metrics
+        const ticketAvgNew = segmentation.newCustomersCount > 0
+            ? segmentation.newRevenue / segmentation.newCustomersCount
+            : 0;
+
+        const acquiredCustomers = segmentation.newCustomersCount;
+        const cac = acquiredCustomers > 0 ? totalInvestment / acquiredCustomers : 0;
+
+        return {
+            ticketAvgNew,
+            acquiredCustomers,
+            cac,
+            retentionRevenue: segmentation.retentionRevenue,
+            newRevenue: segmentation.newRevenue,
+            newCustomersCount: segmentation.newCustomersCount,
+            returningCustomersCount: segmentation.returningCustomersCount
+        };
+    }, CACHE_TTL.LONG); // 15 min cache
 }
 
 /**
@@ -346,29 +334,34 @@ export async function fetch6MonthMetrics() {
             chunkDates.push(subMonths(today, i));
         }
 
-        // Fetch chunks SEQUENTIALLY with delay to avoid rate limits
+        // Fetch chunks IN PARALLEL BATCHES to avoid effective rate limits but speed up total time
+        // Processing 3 months at a time is safe for Tiny ERP
         const tinyMonthlyChunks: any[] = [];
+        const BATCH_SIZE = 3;
 
-        for (let i = 0; i < chunkDates.length; i++) {
-            const date = chunkDates[i];
-            const monthName = format(date, 'MMM/yyyy');
+        for (let i = 0; i < chunkDates.length; i += BATCH_SIZE) {
+            const batch = chunkDates.slice(i, i + BATCH_SIZE);
+            const batchResults = await Promise.allSettled(batch.map((date, idx) => {
+                // Add small jitter to avoid exact simultaneity
+                return new Promise(async (resolve, reject) => {
+                    await new Promise(r => setTimeout(r, idx * 100));
+                    fetchMonthChunk(date).then(resolve).catch(reject);
+                });
+            }));
 
-            console.log(`[12M Metrics] ⏳ Fetching ${monthName} (${i + 1}/${chunkDates.length})...`);
+            batchResults.forEach((res, idx) => {
+                const monthName = format(batch[idx], 'MMM/yyyy');
+                if (res.status === 'fulfilled') {
+                    tinyMonthlyChunks.push(res.value);
+                    console.log(`[12M Metrics] ✅ ${monthName}: ${(res.value as any[]).length} orders`);
+                } else {
+                    console.error(`[12M Metrics] ❌ Failed to fetch ${monthName}:`, res.reason);
+                    tinyMonthlyChunks.push([]);
+                }
+            });
 
-            try {
-                const result = await fetchMonthChunk(date);
-                tinyMonthlyChunks.push(result);
-                console.log(`[12M Metrics] ✅ ${monthName}: ${result.length} orders`);
-            } catch (error) {
-                console.error(`[12M Metrics] ❌ Failed to fetch ${monthName}:`, error);
-                tinyMonthlyChunks.push([]);
-            }
-
-            // Wait 50ms between requests to avoid rate limit (optimized)
-            if (i < chunkDates.length - 1) {
-                console.log(`[12M Metrics] ⏸️  Waiting 50ms before next month...`);
-                await new Promise(resolve => setTimeout(resolve, 50));
-            }
+            // Log progress
+            console.log(`[12M Metrics] 📦 Batch ${i / BATCH_SIZE + 1} complete.`);
         }
 
         const tinyOrders = tinyMonthlyChunks.flat();

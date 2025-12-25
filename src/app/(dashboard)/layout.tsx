@@ -11,7 +11,8 @@ export default async function DashboardLayout({
     const { data: { user } } = await supabase.auth.getUser();
 
     // ... existing user parsing code ...
-    const googleIdentity = user?.identities?.find((id: any) => id.provider === 'google');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const googleIdentity = user?.identities?.find((id: { provider: string;[key: string]: any }) => id.provider === 'google');
     const googleAvatar = googleIdentity?.identity_data?.avatar_url || googleIdentity?.identity_data?.picture;
 
     // Fetch real role AND tenant_id from DB - OPTIMIZED: Single query
@@ -56,13 +57,14 @@ export default async function DashboardLayout({
 
     // Default modules for fallback (prevents empty sidebar)
     let modules: string[] = ['dashboard', 'meta_ads', 'google_ads', 'tiny_erp', 'wake_commerce', 'finance', 'rfm', 'ga4'];
+    let tenantName = "Yamuna";
 
     if (targetTenantIdOrSlug) {
         // Fetch modules for this tenant (non-blocking, with timeout)
         try {
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetTenantIdOrSlug);
 
-            const query = supabase.from('tenants').select('modules');
+            const query = supabase.from('tenants').select('modules, name');
 
             if (isUuid) {
                 query.eq('id', targetTenantIdOrSlug);
@@ -72,8 +74,13 @@ export default async function DashboardLayout({
 
             const { data: tenantData } = await query.single();
 
-            if (tenantData?.modules && Array.isArray(tenantData.modules) && tenantData.modules.length > 0) {
-                modules = tenantData.modules;
+            if (tenantData) {
+                if (tenantData.modules && Array.isArray(tenantData.modules) && tenantData.modules.length > 0) {
+                    modules = tenantData.modules;
+                }
+                if (tenantData.name) {
+                    tenantName = tenantData.name;
+                }
             }
         } catch (e) {
             console.warn('[Layout] Failed to fetch modules, using default:', e);
@@ -88,9 +95,9 @@ export default async function DashboardLayout({
                We need to add padding-left to the main content to avoid overlap.
                Sidebar width is w-[260px] -> pl-[260px]
             */}
-            <Sidebar user={userData} modules={modules} />
+            <Sidebar user={userData} modules={modules} tenantName={tenantName} />
 
-            <div className="lg:pl-[260px] w-full min-h-screen flex flex-col">
+            <div className="lg:pl-[260px] w-full min-h-screen flex flex-col pt-16 lg:pt-0">
                 {children}
             </div>
         </div>

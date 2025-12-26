@@ -5,6 +5,15 @@
 
 import { differenceInDays, parseISO } from "date-fns";
 
+// Helper for name normalization
+export function normalizeName(name: string): string {
+    if (!name) return "";
+    return name.toLowerCase().trim()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
+        .replace(/[^\w\s]/g, '') // Remove punctuation
+        .replace(/\s+/g, ' '); // Normalize multiple spaces
+}
+
 export interface CustomerOrder {
     id: string;
     customerId: string;
@@ -101,10 +110,7 @@ export function getCustomerId(order: any): string {
 
     if (customerName && customerName !== 'Cliente' && customerName.length > 3) {
         // IMPROVED normalization: remove accents, lowercase, trim, remove punctuation, normalize spaces
-        const normalized = customerName.toLowerCase().trim()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
-            .replace(/[^\w\s]/g, '') // Remove punctuation
-            .replace(/\s+/g, ' '); // Normalize multiple spaces to single space
+        const normalized = normalizeName(customerName);
         return `name_${normalized}`;
     }
 
@@ -154,8 +160,32 @@ export function getCustomerPhone(order: any): string {
         order.cliente?.fone ||
         order.raw?.cliente?.fone ||
         order.phone ||
+        order.phone ||
         ''
     );
+}
+
+/**
+ * Extract customer CPF/CNPJ from order
+ */
+export function getCustomerCpf(order: any): string {
+    const cpfCnpj =
+        order.customerCpfCnpj ||
+        order.cpf_cnpj ||
+        order.cnpj ||
+        order.cpf ||
+        order.cliente?.cpf_cnpj ||
+        order.cliente?.cnpj ||
+        order.raw?.cliente?.cpf_cnpj ||
+        order.raw?.cliente?.cnpj;
+
+    if (cpfCnpj) {
+        const normalized = cpfCnpj.toString().replace(/\D/g, '');
+        if (normalized.length >= 11) {
+            return normalized;
+        }
+    }
+    return '';
 }
 
 /**
@@ -183,19 +213,60 @@ export function countFirstTimeBuyers(
     currentPeriodOrders: any[],
     historicalOrders: any[]
 ): number {
-    // Create set of existing customers (before current period)
-    const existingCustomers = new Set<string>();
+    // Build lookup indexes from historical data
+    const existingCpfs = new Set<string>();
+    const existingEmails = new Set<string>();
+    const existingNames = new Set<string>();
+    const existingIds = new Set<string>();
+
     historicalOrders.forEach(order => {
-        const customerId = getCustomerId(order);
-        if (customerId) existingCustomers.add(customerId);
+        const cpf = getCustomerCpf(order);
+        if (cpf) existingCpfs.add(cpf);
+
+        const email = getCustomerEmail(order);
+        if (email) existingEmails.add(email.toLowerCase());
+
+        const name = getCustomerName(order);
+        if (name && name !== 'Cliente' && name.length > 3) {
+            existingNames.add(normalizeName(name));
+        }
+        
+        existingIds.add(getCustomerId(order));
     });
 
     // Count unique new customers in current period
     const newCustomerIds = new Set<string>();
+    
+    // We need to track *who* we've already counted as new/returning in this batch to avoid double counting
+    const processedCurrentIds = new Set<string>();
+
     currentPeriodOrders.forEach(order => {
-        const customerId = getCustomerId(order);
-        if (customerId && !existingCustomers.has(customerId)) {
-            newCustomerIds.add(customerId);
+        const mainId = getCustomerId(order);
+        
+        if (processedCurrentIds.has(mainId)) return; // Already processed this customer
+        processedCurrentIds.add(mainId);
+
+        let isReturning = false;
+
+        const cpf = getCustomerCpf(order);
+        if (cpf && existingCpfs.has(cpf)) isReturning = true;
+
+        if (!isReturning) {
+            const email = getCustomerEmail(order);
+            if (email && existingEmails.has(email.toLowerCase())) isReturning = true;
+        }
+
+        if (!isReturning) {
+            const name = getCustomerName(order);
+            if (name && name !== 'Cliente' && name.length > 3) {
+                if (existingNames.has(normalizeName(name))) isReturning = true;
+            }
+        }
+        
+        if (!isReturning && existingIds.has(mainId)) isReturning = true;
+
+        if (!isReturning) {
+            newCustomerIds.add(mainId);
         }
     });
 
@@ -206,11 +277,25 @@ export function calculateRevenueSegmentation(
     currentPeriodOrders: any[],
     historicalOrders: any[]
 ): CustomerSegmentation {
-    // Create set of existing customers
-    const existingCustomers = new Set<string>();
+    // 1. Build Historical Indexes (Multi-Key)
+    const existingCpfs = new Set<string>();
+    const existingEmails = new Set<string>();
+    const existingNames = new Set<string>();
+    const existingIds = new Set<string>();
+
     historicalOrders.forEach(order => {
-        const customerId = getCustomerId(order);
-        if (customerId) existingCustomers.add(customerId);
+        const cpf = getCustomerCpf(order);
+        if (cpf) existingCpfs.add(cpf);
+
+        const email = getCustomerEmail(order);
+        if (email) existingEmails.add(email.toLowerCase());
+
+        const name = getCustomerName(order);
+        if (name && name !== 'Cliente' && name.length > 3) {
+            existingNames.add(normalizeName(name));
+        }
+        
+        existingIds.add(getCustomerId(order));
     });
 
     let newRevenue = 0;
@@ -218,56 +303,62 @@ export function calculateRevenueSegmentation(
     const newCustomerIds = new Set<string>();
     const returningCustomerIds = new Set<string>();
 
-    // Track identification methods for debugging
-    let cpfCnpjCount = 0;
-    let emailCount = 0;
-    let nameCount = 0;
-    let unknownCount = 0;
+    // Debug counters
+    let matchByCpf = 0;
+    let matchByEmail = 0;
+    let matchByName = 0;
+    let matchById = 0;
 
     currentPeriodOrders.forEach(order => {
-        const customerId = getCustomerId(order);
         const orderValue = order.total || 0;
+        const mainId = getCustomerId(order);
+        
+        let isReturning = false;
 
-        // Track identification method
-        if (customerId.startsWith('cpf_')) cpfCnpjCount++;
-        else if (customerId.includes('@')) emailCount++;
-        else if (customerId.startsWith('name_')) nameCount++;
-        else if (customerId.startsWith('unknown_')) unknownCount++;
+        // Check CPF
+        const cpf = getCustomerCpf(order);
+        if (cpf && existingCpfs.has(cpf)) {
+            isReturning = true;
+            matchByCpf++;
+        }
 
-        if (existingCustomers.has(customerId)) {
-            // Returning customer
+        // Check Email
+        if (!isReturning) {
+            const email = getCustomerEmail(order);
+            if (email && existingEmails.has(email.toLowerCase())) {
+                isReturning = true;
+                matchByEmail++;
+            }
+        }
+
+        // Check Name (Fallback)
+        if (!isReturning) {
+            const name = getCustomerName(order);
+            if (name && name !== 'Cliente' && name.length > 3) {
+                if (existingNames.has(normalizeName(name))) {
+                    isReturning = true;
+                    matchByName++;
+                }
+            }
+        }
+        
+        // Check ID (Legacy)
+        if (!isReturning && existingIds.has(mainId)) {
+            isReturning = true;
+            matchById++;
+        }
+
+        if (isReturning) {
             retentionRevenue += orderValue;
-            returningCustomerIds.add(customerId);
+            returningCustomerIds.add(mainId);
         } else {
-            // New customer
             newRevenue += orderValue;
-            newCustomerIds.add(customerId);
+            newCustomerIds.add(mainId);
         }
     });
 
-    console.log(`[Customer ID] 🔍 Identification breakdown for ${currentPeriodOrders.length} orders:`);
-    console.log(`[Customer ID]   CPF/CNPJ: ${cpfCnpjCount} (${((cpfCnpjCount / currentPeriodOrders.length) * 100).toFixed(1)}%)`);
-    console.log(`[Customer ID]   Email: ${emailCount} (${((emailCount / currentPeriodOrders.length) * 100).toFixed(1)}%)`);
-    console.log(`[Customer ID]   Name: ${nameCount} (${((nameCount / currentPeriodOrders.length) * 100).toFixed(1)}%)`);
-    console.log(`[Customer ID]   Unknown: ${unknownCount} (${((unknownCount / currentPeriodOrders.length) * 100).toFixed(1)}%)`);
-
-    // Validation checks
-    const totalRevenue = currentPeriodOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-    const calculatedTotal = newRevenue + retentionRevenue;
-    const revenueDifference = Math.abs(totalRevenue - calculatedTotal);
-
-    if (revenueDifference > 1) {
-        console.warn(`[Segmentation] ⚠️ Revenue mismatch detected!`);
-        console.warn(`[Segmentation]   Total Revenue: R$ ${totalRevenue.toFixed(2)}`);
-        console.warn(`[Segmentation]   Calculated (New + Retention): R$ ${calculatedTotal.toFixed(2)}`);
-        console.warn(`[Segmentation]   Difference: R$ ${revenueDifference.toFixed(2)}`);
-    }
-
-    if (newCustomerIds.size === 0 && currentPeriodOrders.length > 0) {
-        console.error(`[Segmentation] 🚨 CRITICAL: No new customers found in ${currentPeriodOrders.length} orders!`);
-        console.error(`[Segmentation] 🚨 This suggests customer matching is failing.`);
-        console.error(`[Segmentation] 🚨 Historical customers: ${existingCustomers.size}`);
-    }
+    console.log(`[Segmentation] 🔢 Match Analysis: CPF=${matchByCpf}, Email=${matchByEmail}, Name=${matchByName}, ID=${matchById}`);
+    console.log(`[Segmentation]    Total Orders: ${currentPeriodOrders.length}, Returning: ${matchByCpf + matchByEmail + matchByName + matchById}`);
 
     return {
         newRevenue,

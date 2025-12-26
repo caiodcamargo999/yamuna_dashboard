@@ -242,14 +242,15 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
     const endStr = format(currentEnd, "yyyy-MM-dd");
 
     // Cache key for this specific heavy calculation
-    const cacheKey = `retention:v2:${startStr}:${endStr}`;
+    const cacheKey = `retention:v7:${startStr}:${endStr}`;
 
-    console.log(`[Retention] 📊 Starting heavy retention fetch: ${startStr} to ${endStr}`);
+    console.log(`[Retention] 📊 Starting retention fetch: ${startStr} to ${endStr}`);
 
     return withCache(cacheKey, async () => {
-        // Fetch Current Orders (needed for segmentation)
+        // Fetch Current Orders - MUST use getTinyOrders to get ALL orders
+        // getTinyOrdersWithCustomers only returns first 100 and discards the rest!
         const [tinyRes, wakeRes, metaRes, googleRes] = await Promise.allSettled([
-            getTinyOrders(startStr, endStr),
+            getTinyOrders(startStr, endStr), // COMPLETE dataset
             getWakeOrders(startStr, endStr),
             getMetaAdsInsights(startStr, endStr), // Needed for CAC
             getGoogleAnalyticsData(startStr, endStr) // Needed for Investment
@@ -259,26 +260,78 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
         const currentWake = wakeRes.status === 'fulfilled' ? wakeRes.value : [];
         const allOrders = mergeOrders(currentTiny, currentWake);
 
+        console.log(`[Retention] 📦 Current period: ${allOrders.length} orders`);
+
         const metaCost = metaRes.status === 'fulfilled' ? metaRes.value?.spend || 0 : 0;
         const googleCost = googleRes.status === 'fulfilled' ? googleRes.value?.investment || 0 : 0;
         const totalInvestment = metaCost + googleCost;
-        const totalRevenue = allOrders.reduce((acc, o) => acc + (o.total || 0), 0);
 
-        // Fetch Historical Orders (180 days)
-        const historicalStart = format(subDays(currentStart, 180), "yyyy-MM-dd");
-        const historicalEnd = format(subDays(currentStart, 1), "yyyy-MM-dd");
+        // Fetch Historical Orders (180 days) - OPTIMIZED PARALLEL FETCH
+        const historicalStart = subDays(currentStart, 180);
 
-        console.log(`[Retention] 🕒 Fetching historical context: ${historicalStart} to ${historicalEnd}`);
+        console.log(`[Retention] 🕒 Fetching historical context (180 days) in chunks...`);
 
-        const [histTiny, histWake] = await Promise.all([
-            getTinyOrders(historicalStart, historicalEnd).catch(() => []),
-            getWakeOrders(historicalStart, historicalEnd).catch(() => [])
-        ]);
-        const historicalData = mergeOrders(histTiny, histWake);
+        // Split 180 days into 6 chunks of 30 days
+        const chunks = [];
+        for (let i = 0; i < 6; i++) {
+            const chunkEnd = subDays(currentStart, i * 30 + 1);
+            const chunkStart = subDays(chunkEnd, 29);
+
+            if (chunkStart >= historicalStart) {
+                chunks.push({
+                    start: format(chunkStart, "yyyy-MM-dd"),
+                    end: format(chunkEnd, "yyyy-MM-dd")
+                });
+            }
+        }
+
+        // SEQUENTIAL fetch with delays to avoid rate limits
+        const historyChunksResults: any[][] = [];
+        for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            try {
+                const orders = await getTinyOrders(chunk.start, chunk.end);
+                console.log(`[Retention]   ✅ Chunk ${i + 1}/${chunks.length}: ${chunk.start}:${chunk.end} -> ${orders.length} orders`);
+                historyChunksResults.push(orders);
+
+
+                // INCREASED DELAY: Add 2 second delay between chunks to avoid rate limits
+                if (i < chunks.length - 1) {
+                    console.log(`[Retention]   ⏳ Waiting 2s before next chunk...`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            } catch (err) {
+                console.error(`[Retention]   ❌ Chunk ${i + 1}/${chunks.length}: ${chunk.start}:${chunk.end} failed:`, err);
+                historyChunksResults.push([]);
+            }
+        }
+
+        // Fetch Wake orders
+        const histWake = await getWakeOrders(
+            format(historicalStart, "yyyy-MM-dd"),
+            format(subDays(currentStart, 1), "yyyy-MM-dd")
+        ).catch(() => []);
+
+        const histTiny = historyChunksResults.flat();
+        console.log(`[Retention] 📦 Historical: ${histTiny.length} Tiny + ${histWake?.length || 0} Wake`);
+
+        const historicalData = mergeOrders(histTiny, histWake || []);
 
         // Segmentation Logic
-        console.log(`[Retention] 🔢 Calculating segmentation...`);
+        console.log(`[Retention] 🔢 Segmenting ${allOrders.length} current vs ${historicalData.length} historical...`);
         const segmentation = calculateRevenueSegmentation(allOrders, historicalData);
+
+        const totalRevenue = allOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+        const calculatedTotal = segmentation.newRevenue + segmentation.retentionRevenue;
+        const revenueDiff = Math.abs(totalRevenue - calculatedTotal);
+
+        console.log(`[Retention] 💰 Total Revenue: R$ ${totalRevenue.toFixed(2)}`);
+        console.log(`[Retention] 📈 New: R$ ${segmentation.newRevenue.toFixed(2)} (${((segmentation.newRevenue / totalRevenue) * 100).toFixed(1)}%)`);
+        console.log(`[Retention] 🔄 Retention: R$ ${segmentation.retentionRevenue.toFixed(2)} (${((segmentation.retentionRevenue / totalRevenue) * 100).toFixed(1)}%)`);
+
+        if (revenueDiff > 1) {
+            console.error(`[Retention] 🚨 WARNING: Revenue mismatch of R$ ${revenueDiff.toFixed(2)}`);
+        }
 
         // Calculate Derived Metrics
         const ticketAvgNew = segmentation.newCustomersCount > 0

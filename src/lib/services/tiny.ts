@@ -202,8 +202,8 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     }
 
     while (hasMore && page <= maxPages) {
-        // Throttle each page request slightly to respect global rate limits
-        if (page > 1) await new Promise(r => setTimeout(r, 20));
+        // INCREASED DELAY: Tiny API has aggressive rate limiting
+        if (page > 1) await new Promise(r => setTimeout(r, 300)); // 300ms between pages
 
         // Tiny API uses "dataInicial" and "dataFinal" for date filtering
         let url = `https://api.tiny.com.br/api2/pedidos.pesquisa.php?token=${TINY_TOKEN}&formato=json&pagina=${page}`;

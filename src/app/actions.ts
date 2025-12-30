@@ -202,8 +202,8 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
     const startStr = format(currentStart, "yyyy-MM-dd");
     const endStr = format(currentEnd, "yyyy-MM-dd");
 
-    // Cache key for this specific heavy calculation
-    const cacheKey = `retention:v9:${startStr}:${endStr}`;
+    // Cache key for this specific heavy calculation - v10
+    const cacheKey = `retention:v10:${startStr}:${endStr}`;
 
     console.log(`[Retention] 📊 Starting retention fetch: ${startStr} to ${endStr}`);
 
@@ -226,52 +226,25 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
         const googleCost = googleRes.status === 'fulfilled' ? googleRes.value?.investment || 0 : 0;
         const totalInvestment = metaCost + googleCost;
 
-        // Fetch Historical Orders (180 days) - OPTIMIZED PARALLEL FETCH
+        // Fetch Historical Orders (180 days) - SINGLE FETCH
+        // We use single fetch instead of chunks because getTinyOrders handles pagination
+        // and serial fetches are safer for rate limits.
         const historicalStart = subDays(currentStart, 180);
+        const histStartStr = format(historicalStart, "yyyy-MM-dd");
+        // Start of historical period is 180 days ago
+        // End of historical period is 1 day before current period starts
+        const histEndStr = format(subDays(currentStart, 1), "yyyy-MM-dd");
 
-        console.log(`[Retention] 🕒 Fetching historical context (180 days) in chunks...`);
+        console.log(`[Retention] 🕒 Fetching historical context (180 days) in one go: ${histStartStr} to ${histEndStr}`);
 
-        // Split 180 days into 6 chunks of 30 days
-        const chunks = [];
-        for (let i = 0; i < 6; i++) {
-            const chunkEnd = subDays(currentStart, i * 30 + 1);
-            const chunkStart = subDays(chunkEnd, 29);
-
-            if (chunkStart >= historicalStart) {
-                chunks.push({
-                    start: format(chunkStart, "yyyy-MM-dd"),
-                    end: format(chunkEnd, "yyyy-MM-dd")
-                });
-            }
-        }
-
-        // PARALLEL fetch with internal backoff in getTinyOrders to handle rate limits
-        // Optimized: Stagger requests by 500ms to avoid rate limits
-        // Use allSettled to ensure we get partial data instead of crashing
-        const historyChunksPromises = chunks.map(async (chunk, i) => {
-            // Add a staggered delay
-            await new Promise(r => setTimeout(r, i * 600));
-
-            try {
-                const orders = await getTinyOrders(chunk.start, chunk.end);
-                console.log(`[Retention]   ✅ Chunk ${i + 1}/${chunks.length}: ${chunk.start}:${chunk.end} -> ${orders.length} orders`);
-                return orders;
-            } catch (err) {
-                console.error(`[Retention]   ❌ Chunk ${i + 1}/${chunks.length}: ${chunk.start}:${chunk.end} failed:`, err);
+        const [histTiny, histWake] = await Promise.all([
+            getTinyOrders(histStartStr, histEndStr).catch(e => {
+                console.error("[Retention] ❌ Historical Tiny Fetch Failed:", e);
                 return [];
-            }
-        });
+            }),
+            getWakeOrders(histStartStr, histEndStr).catch(() => [])
+        ]);
 
-        // Wait for all chunks
-        const historyChunksResults = await Promise.all(historyChunksPromises);
-
-        // Fetch Wake orders
-        const histWake = await getWakeOrders(
-            format(historicalStart, "yyyy-MM-dd"),
-            format(subDays(currentStart, 1), "yyyy-MM-dd")
-        ).catch(() => []);
-
-        const histTiny = historyChunksResults.flat();
         console.log(`[Retention] 📦 Historical: ${histTiny.length} Tiny + ${histWake?.length || 0} Wake`);
 
         const historicalData = mergeOrders(histTiny, histWake || []);
@@ -310,91 +283,50 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
  * Fetch 6 Month Metrics (LTV, ROI, Revenue)
  * Fixed with proper caching and CHUNKED FETCHING to avoid pagination limits
  */
+/**
+ * Fetch 6 Month Metrics (LTV, ROI, Revenue)
+ * OPTIMIZED: Fetches all data in single requests to avoid Rate Limit storms.
+ * The getTinyOrders function handles pagination internally.
+ */
 export async function fetch6MonthMetrics() {
     const today = new Date();
-    const start12m = format(subDays(today, 365), "yyyy-MM-dd");
-    const end12m = format(today, "yyyy-MM-dd");
+    // Use 180 days (approx 6 months) for consistency with the UI label "6 Meses"
+    // Adjusting from 365 to 180 as per the component label
+    const startPeriod = format(subDays(today, 180), "yyyy-MM-dd");
+    const endPeriod = format(today, "yyyy-MM-dd");
 
-    // Cache with date-specific key - UPDATED V5 (Batched Fetching)
-    const cacheKey = `metrics:12months:v5:batched:${end12m}`;
+    // Cache with date-specific key - v6
+    const cacheKey = `metrics:6months:v6:${endPeriod}`;
 
-    console.log(`[12M Metrics] 🗓️ Period: ${start12m} to ${end12m} (365 days)`);
+    console.log(`[6M Metrics] 🗓️ Period: ${startPeriod} to ${endPeriod}`);
 
-    // Enable caching (v6)
     return withCache(cacheKey, async () => {
-        console.log(`[12M Metrics] 🔄 Fetching fresh 12-month data (Batched - NoCache)...`);
+        console.log(`[6M Metrics] 🔄 Fetching fresh 6-month data...`);
 
-        // ... (existing logic) ...
-
-
-        // Helper to fetch a single month to avoid pagination limits (Tiny returns ascending order)
-        const fetchMonthChunk = async (date: Date) => {
-            const startStr = format(startOfMonth(date), "yyyy-MM-dd");
-            const endStr = format(endOfMonth(date), "yyyy-MM-dd");
-            return getTinyOrders(startStr, endStr);
-        };
-
-        // Create 6 chunks (one for each month in the range)
-        const chunkDates: Date[] = [];
-        for (let i = 0; i < 6; i++) {
-            chunkDates.push(subMonths(today, i));
-        }
-
-        // Fetch chunks IN PARALLEL BATCHES to avoid effective rate limits but speed up total time
-        // Processing 3 months at a time is safe for Tiny ERP
-        const tinyMonthlyChunks: any[] = [];
-        const BATCH_SIZE = 3;
-
-        for (let i = 0; i < chunkDates.length; i += BATCH_SIZE) {
-            const batch = chunkDates.slice(i, i + BATCH_SIZE);
-            const batchResults = await Promise.allSettled(batch.map((date, idx) => {
-                // Add small jitter to avoid exact simultaneity
-                return new Promise(async (resolve, reject) => {
-                    await new Promise(r => setTimeout(r, idx * 100));
-                    fetchMonthChunk(date).then(resolve).catch(reject);
-                });
-            }));
-
-            batchResults.forEach((res, idx) => {
-                const monthName = format(batch[idx], 'MMM/yyyy');
-                if (res.status === 'fulfilled') {
-                    tinyMonthlyChunks.push(res.value);
-                    console.log(`[12M Metrics] ✅ ${monthName}: ${(res.value as any[]).length} orders`);
-                } else {
-                    console.error(`[12M Metrics] ❌ Failed to fetch ${monthName}:`, res.reason);
-                    tinyMonthlyChunks.push([]);
-                }
-            });
-
-            // Log progress
-            console.log(`[12M Metrics] 📦 Batch ${i / BATCH_SIZE + 1} complete.`);
-        }
-
-        const tinyOrders = tinyMonthlyChunks.flat();
-
-        // DETAILED LOGGING: Show orders per month
-        console.log(`[12M Metrics] 📊 DETAILED BREAKDOWN:`);
-        chunkDates.forEach((date, idx) => {
-            const monthOrders = tinyMonthlyChunks[idx] || [];
-            const monthRevenue = monthOrders.reduce((acc: number, o: any) => acc + (o.total || 0), 0);
-            console.log(`[12M Metrics]   ${format(date, 'MMM/yyyy')}: ${monthOrders.length} orders, R$ ${monthRevenue.toFixed(2)}`);
-        });
-
-        const [wakeOrders, googleData, metaData] = await Promise.all([
-            getWakeOrders(start12m, end12m),
-            getGoogleAnalyticsData(start12m, end12m),
-            getMetaAdsInsights(start12m, end12m)
+        // Use Promise.all to fetch Tiny, Wake, GA4, Meta in parallel
+        // The global semaphore in tiny.ts will ensure Tiny doesn't overload
+        const [tinyOrders, wakeOrders, googleData, metaData] = await Promise.all([
+            getTinyOrders(startPeriod, endPeriod).catch(e => {
+                console.error("[6M Metrics] ❌ Tiny Fetch Failed:", e);
+                return [];
+            }),
+            getWakeOrders(startPeriod, endPeriod).catch(e => {
+                console.error("[6M Metrics] ❌ Wake Fetch Failed:", e);
+                return [];
+            }),
+            getGoogleAnalyticsData(startPeriod, endPeriod).catch(() => null),
+            getMetaAdsInsights(startPeriod, endPeriod).catch(() => null)
         ]);
 
-        console.log(`[12M Metrics] 📦 Raw orders: Tiny=${tinyOrders.length} (from ${chunkDates.length} chunks), Wake=${wakeOrders?.length || 0}`);
+        console.log(`[6M Metrics] 📦 Raw orders: Tiny=${tinyOrders.length}, Wake=${wakeOrders?.length || 0}`);
 
         const allOrders = mergeOrders(tinyOrders || [], wakeOrders || []);
         const revenue = allOrders.reduce((acc, o) => acc + (o.total || 0), 0);
         const investment = (googleData?.investment || 0) + (metaData?.spend || 0);
 
-        console.log(`[12M Metrics] ✅ Orders found: ${allOrders.length}`);
-        console.log(`[12M Metrics] ✅ Revenue: R$ ${revenue.toFixed(2)}`);
-        console.log(`[12M Metrics] ✅ Investment: R$ ${investment.toFixed(2)}`);
+        console.log(`[6M Metrics] ✅ Orders found: ${allOrders.length}`);
+        console.log(`[6M Metrics] ✅ Revenue: R$ ${revenue.toFixed(2)}`);
+        console.log(`[6M Metrics] ✅ Investment: R$ ${investment.toFixed(2)}`);
 
         // Count unique customers
         let uniqueCustomers = getUniqueCustomerCount(allOrders);
@@ -411,14 +343,15 @@ export async function fetch6MonthMetrics() {
 
         const roi = investment > 0 ? ((revenue - investment) / investment) * 100 : 0;
 
-        console.log(`[12M Metrics] 📊 LTV Calculation: R$ ${revenue.toFixed(2)} / ${estimatedNewCustomers} new customers = R$ ${ltv.toFixed(2)}`);
+        console.log(`[6M Metrics] 📊 LTV Calculation: R$ ${revenue.toFixed(2)} / ${estimatedNewCustomers} new customers = R$ ${ltv.toFixed(2)}`);
 
-        console.log(`[12M Metrics] 📊 Final: LTV=R$ ${ltv.toFixed(2)}, ROI=${roi.toFixed(2)}%`);
+        console.log(`[6M Metrics] 📊 Final: LTV=R$ ${ltv.toFixed(2)}, ROI=${roi.toFixed(2)}%`);
 
         return { revenue, ltv, roi, uniqueCustomers, investment };
 
-    }, CACHE_TTL.FOUR_HOURS); // Cache for 4 hours (changes slowly)
+    }, CACHE_TTL.FOUR_HOURS);
 }
+
 
 /**
  * Fetch Last Month Data

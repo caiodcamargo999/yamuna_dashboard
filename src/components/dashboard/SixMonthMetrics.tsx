@@ -5,54 +5,103 @@ import { Rocket } from "lucide-react";
 
 // Component to load 6-month metrics asynchronously
 async function SixMonthMetrics() {
-    const { fetch6MonthMetrics } = await import("@/app/actions");
-    const data6m = await fetch6MonthMetrics();
+    try {
+        const { fetch6MonthMetrics } = await import("@/app/actions");
+        const data6m = await fetch6MonthMetrics();
 
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <GlassCard delay={11} className="flex flex-col justify-between h-[120px] group">
-                <div className="flex justify-between items-start">
-                    <span className="text-xs text-slate-400 font-medium uppercase tracking-wider group-hover:text-slate-300 transition-colors">
-                        Faturamento 6 Meses
-                    </span>
-                </div>
-                <div className="mt-2">
-                    <div className="text-2xl font-bold text-white tracking-tight flex items-baseline gap-1 group-hover:scale-105 transition-transform origin-left">
-                        <span className="text-lg text-slate-500 font-medium">R$ </span>
-                        <AnimatedNumber value={data6m.revenue} format="decimal" />
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <GlassCard delay={11} className="flex flex-col justify-between h-[120px] group">
+                    <div className="flex justify-between items-start">
+                        <span className="text-xs text-slate-400 font-medium uppercase tracking-wider group-hover:text-slate-300 transition-colors">
+                            Faturamento 6 Meses
+                        </span>
                     </div>
-                </div>
-            </GlassCard>
+                    <div className="mt-2">
+                        <div className="text-2xl font-bold text-white tracking-tight flex items-baseline gap-1 group-hover:scale-105 transition-transform origin-left">
+                            <span className="text-lg text-slate-500 font-medium">R$ </span>
+                            <AnimatedNumber value={data6m.revenue} format="decimal" />
+                        </div>
+                    </div>
+                </GlassCard>
 
-            <GlassCard delay={12} className="flex flex-col justify-between h-[120px] group">
-                <div className="flex justify-between items-start">
-                    <span className="text-xs text-slate-400 font-medium uppercase tracking-wider group-hover:text-slate-300 transition-colors">
-                        LTV 6 Meses
-                    </span>
-                </div>
-                <div className="mt-2">
-                    <div className="text-2xl font-bold text-white tracking-tight flex items-baseline gap-1 group-hover:scale-105 transition-transform origin-left">
-                        <span className="text-lg text-slate-500 font-medium">R$ </span>
-                        <AnimatedNumber value={data6m.ltv} format="decimal" />
+                <GlassCard delay={12} className="flex flex-col justify-between h-[120px] group">
+                    <div className="flex justify-between items-start">
+                        <span className="text-xs text-slate-400 font-medium uppercase tracking-wider group-hover:text-slate-300 transition-colors">
+                            LTV 6 Meses
+                        </span>
                     </div>
-                </div>
-            </GlassCard>
+                    <div className="mt-2">
+                        <div className="text-2xl font-bold text-white tracking-tight flex items-baseline gap-1 group-hover:scale-105 transition-transform origin-left">
+                            <span className="text-lg text-slate-500 font-medium">R$ </span>
+                            <AnimatedNumber value={data6m.ltv} format="decimal" />
+                        </div>
+                    </div>
+                </GlassCard>
 
-            <GlassCard delay={13} className="flex flex-col justify-between h-[120px] group">
-                <div className="flex justify-between items-start">
-                    <span className="text-xs text-slate-400 font-medium uppercase tracking-wider group-hover:text-slate-300 transition-colors">
-                        ROI 6 Meses
-                    </span>
-                </div>
-                <div className="mt-2">
-                    <div className="text-2xl font-bold text-white tracking-tight flex items-baseline gap-1 group-hover:scale-105 transition-transform origin-left">
-                        <AnimatedNumber value={data6m.roi} format="decimal" />
-                        <span className="text-sm text-slate-500 font-medium">x</span>
+                <GlassCard delay={13} className="flex flex-col justify-between h-[120px] group">
+                    <div className="flex justify-between items-start">
+                        <span className="text-xs text-slate-400 font-medium uppercase tracking-wider group-hover:text-slate-300 transition-colors">
+                            ROI 6 Meses
+                        </span>
                     </div>
-                </div>
-            </GlassCard>
-        </div>
-    );
+                    <div className="mt-2">
+                        <div className="text-2xl font-bold text-white tracking-tight flex items-baseline gap-1 group-hover:scale-105 transition-transform origin-left">
+                            <AnimatedNumber value={data6m.roi} format="decimal" />
+                            <span className="text-sm text-slate-500 font-medium">x</span>
+                        </div>
+                    </div>
+                </GlassCard>
+            </div>
+        );
+    } catch (error) {
+        console.error("[SixMonthMetrics] Failed to fetch data:", error);
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <GlassCard delay={11} className="flex flex-col justify-between h-[120px] group">
+                    <div className="flex justify-between items-start">
+                        <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+                            Faturamento 6 Meses
+                        </span>
+                    </div>
+                    <div className="mt-2">
+                        <div className="text-2xl font-bold text-white tracking-tight flex items-baseline gap-1">
+                            <span className="text-lg text-slate-500 font-medium">R$ </span>
+                            0,00
+                        </div>
+                    </div>
+                </GlassCard>
+
+                <GlassCard delay={12} className="flex flex-col justify-between h-[120px] group">
+                    <div className="flex justify-between items-start">
+                        <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+                            LTV 6 Meses
+                        </span>
+                    </div>
+                    <div className="mt-2">
+                        <div className="text-2xl font-bold text-white tracking-tight flex items-baseline gap-1">
+                            <span className="text-lg text-slate-500 font-medium">R$ </span>
+                            0,00
+                        </div>
+                    </div>
+                </GlassCard>
+
+                <GlassCard delay={13} className="flex flex-col justify-between h-[120px] group">
+                    <div className="flex justify-between items-start">
+                        <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+                            ROI 6 Meses
+                        </span>
+                    </div>
+                    <div className="mt-2">
+                        <div className="text-2xl font-bold text-white tracking-tight flex items-baseline gap-1">
+                            0.00
+                            <span className="text-sm text-slate-500 font-medium">x</span>
+                        </div>
+                    </div>
+                </GlassCard>
+            </div>
+        );
+    }
 }
 
 // Loading skeleton for 6-month metrics

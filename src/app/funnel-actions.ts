@@ -69,10 +69,10 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
         // Current month data
         withCache(`funnel:currentMonth:${currentMonthStart}`, async () => {
             const [ga4, meta, tiny, wake] = await Promise.all([
-                getGoogleAnalyticsData(currentMonthStart, currentMonthEnd),
-                getMetaAdsInsights(currentMonthStart, currentMonthEnd),
-                getTinyOrders(currentMonthStart, currentMonthEnd),
-                getWakeOrders(currentMonthStart, currentMonthEnd)
+                getGoogleAnalyticsData(currentMonthStart, currentMonthEnd).catch(() => null),
+                getMetaAdsInsights(currentMonthStart, currentMonthEnd).catch(() => null),
+                getTinyOrders(currentMonthStart, currentMonthEnd).catch(() => []),
+                getWakeOrders(currentMonthStart, currentMonthEnd).catch(() => [])
             ]);
             return { ga4, meta, tiny: tiny || [], wake: wake || [] };
         }, CACHE_TTL.MEDIUM),
@@ -80,10 +80,10 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
         // Previous month data
         withCache(`funnel:prevMonth:${prevMonthStart}`, async () => {
             const [ga4, meta, tiny, wake] = await Promise.all([
-                getGoogleAnalyticsData(prevMonthStart, prevMonthEnd),
-                getMetaAdsInsights(prevMonthStart, prevMonthEnd),
-                getTinyOrders(prevMonthStart, prevMonthEnd),
-                getWakeOrders(prevMonthStart, prevMonthEnd)
+                getGoogleAnalyticsData(prevMonthStart, prevMonthEnd).catch(() => null),
+                getMetaAdsInsights(prevMonthStart, prevMonthEnd).catch(() => null),
+                getTinyOrders(prevMonthStart, prevMonthEnd).catch(() => []),
+                getWakeOrders(prevMonthStart, prevMonthEnd).catch(() => [])
             ]);
             return { ga4, meta, tiny: tiny || [], wake: wake || [] };
         }, CACHE_TTL.LONG),

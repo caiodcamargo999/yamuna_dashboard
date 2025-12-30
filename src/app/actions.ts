@@ -51,48 +51,9 @@ export async function fetchDashboardData(startDate = "30daysAgo", endDate = "tod
     console.log(`[Dashboard] 🛠️ Checking cache for key: ${cacheKey}...`);
 
     // PRE-CALCULATE HISTORICAL DATES
-    // OPTIMIZATION: Use 180 days (6 months) instead of 365.
-    // This provides enough data for "Growth 6 Months" checks while being 2x faster than 365 days.
-    const historicalStartDate = format(subDays(currentStart, 180), "yyyy-MM-dd");
-    const historicalEndDate = format(subDays(currentStart, 1), "yyyy-MM-dd");
-    const historicalCacheKey = `historical:v8:180d:${historicalStartDate}:${historicalEndDate}`;
-
-    // 🚀 OPTIMIZATION: Start independent fetches (SERIALIZED to avoid Rate Limits)
-    // We don't await them yet, but we serialize their start if possible, or just accept they run in parallel but we'll add delays inside them.
-    // For now, let's keep them parallel but make sure they don't crash the main thread.
-
-    // DEPRECATED in Main Fetch: These are now fetched by their own components (SixMonthMetrics & LastMonthData)
-    // to allow Streaming/Suspense to work properly.
-    /*
-    const data6mPromise = fetch6MonthMetrics().catch(e => {
-        console.error("[Dashboard] ⚠️ 6M Metrics Failed:", e);
-        return { revenue: 0, ltv: 0, roi: 0, uniqueCustomers: 0, investment: 0 };
-    });
-
-    const lastMonthDataPromise = fetchLastMonthData().catch(e => {
-        console.error("[Dashboard] ⚠️ Last Month Metrics Failed:", e);
-        return { revenue: 0, investment: 0, label: "Mês Anterior" };
-    });
-    */
-
-    const historicalDataPromise = withCache(historicalCacheKey, async () => {
-        try {
-            const [historicalTiny, historicalWake] = await Promise.all([
-                getTinyOrders(historicalStartDate, historicalEndDate).catch(e => {
-                    console.error("[Dashboard] ⚠️ Historical Tiny Fetch Failed:", e);
-                    return [];
-                }),
-                getWakeOrders(historicalStartDate, historicalEndDate).catch(e => {
-                    console.error("[Dashboard] ⚠️ Historical Wake Fetch Failed:", e);
-                    return [];
-                })
-            ]);
-            return mergeOrders(historicalTiny || [], historicalWake || []);
-        } catch (e) {
-            console.error("[Dashboard] 🚨 Critical Historical Data Error:", e);
-            return [];
-        }
-    }, CACHE_TTL.FOUR_HOURS); // 4h cache
+    // OPTIMIZED: Historical data fetch moved to fetchRetentionMetrics (streaming)
+    // to prevent blocking the main dashboard load.
+    // The historical data for retention is now fetched only when the client component mounts.
 
     // ... (rest of function)
 
@@ -242,13 +203,12 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
     const endStr = format(currentEnd, "yyyy-MM-dd");
 
     // Cache key for this specific heavy calculation
-    const cacheKey = `retention:v7:${startStr}:${endStr}`;
+    const cacheKey = `retention:v9:${startStr}:${endStr}`;
 
     console.log(`[Retention] 📊 Starting retention fetch: ${startStr} to ${endStr}`);
 
     return withCache(cacheKey, async () => {
         // Fetch Current Orders - MUST use getTinyOrders to get ALL orders
-        // getTinyOrdersWithCustomers only returns first 100 and discards the rest!
         const [tinyRes, wakeRes, metaRes, googleRes] = await Promise.allSettled([
             getTinyOrders(startStr, endStr), // COMPLETE dataset
             getWakeOrders(startStr, endStr),
@@ -285,26 +245,25 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
             }
         }
 
-        // SEQUENTIAL fetch with delays to avoid rate limits
-        const historyChunksResults: any[][] = [];
-        for (let i = 0; i < chunks.length; i++) {
-            const chunk = chunks[i];
+        // PARALLEL fetch with internal backoff in getTinyOrders to handle rate limits
+        // Optimized: Stagger requests by 500ms to avoid rate limits
+        // Use allSettled to ensure we get partial data instead of crashing
+        const historyChunksPromises = chunks.map(async (chunk, i) => {
+            // Add a staggered delay
+            await new Promise(r => setTimeout(r, i * 600));
+
             try {
                 const orders = await getTinyOrders(chunk.start, chunk.end);
                 console.log(`[Retention]   ✅ Chunk ${i + 1}/${chunks.length}: ${chunk.start}:${chunk.end} -> ${orders.length} orders`);
-                historyChunksResults.push(orders);
-
-
-                // INCREASED DELAY: Add 2 second delay between chunks to avoid rate limits
-                if (i < chunks.length - 1) {
-                    console.log(`[Retention]   ⏳ Waiting 2s before next chunk...`);
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                }
+                return orders;
             } catch (err) {
                 console.error(`[Retention]   ❌ Chunk ${i + 1}/${chunks.length}: ${chunk.start}:${chunk.end} failed:`, err);
-                historyChunksResults.push([]);
+                return [];
             }
-        }
+        });
+
+        // Wait for all chunks
+        const historyChunksResults = await Promise.all(historyChunksPromises);
 
         // Fetch Wake orders
         const histWake = await getWakeOrders(
@@ -321,17 +280,11 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
         console.log(`[Retention] 🔢 Segmenting ${allOrders.length} current vs ${historicalData.length} historical...`);
         const segmentation = calculateRevenueSegmentation(allOrders, historicalData);
 
+        // Debug Log
         const totalRevenue = allOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-        const calculatedTotal = segmentation.newRevenue + segmentation.retentionRevenue;
-        const revenueDiff = Math.abs(totalRevenue - calculatedTotal);
-
         console.log(`[Retention] 💰 Total Revenue: R$ ${totalRevenue.toFixed(2)}`);
-        console.log(`[Retention] 📈 New: R$ ${segmentation.newRevenue.toFixed(2)} (${((segmentation.newRevenue / totalRevenue) * 100).toFixed(1)}%)`);
-        console.log(`[Retention] 🔄 Retention: R$ ${segmentation.retentionRevenue.toFixed(2)} (${((segmentation.retentionRevenue / totalRevenue) * 100).toFixed(1)}%)`);
-
-        if (revenueDiff > 1) {
-            console.error(`[Retention] 🚨 WARNING: Revenue mismatch of R$ ${revenueDiff.toFixed(2)}`);
-        }
+        console.log(`[Retention] 📈 New: R$ ${segmentation.newRevenue.toFixed(2)}`);
+        console.log(`[Retention] 🔄 Retention: R$ ${segmentation.retentionRevenue.toFixed(2)}`);
 
         // Calculate Derived Metrics
         const ticketAvgNew = segmentation.newCustomersCount > 0
@@ -492,10 +445,10 @@ export async function fetchLastMonthData() {
         console.log(`[LastMonth] 🔄 Fetching fresh last month data...`);
 
         const [tinyOrders, wakeOrders, googleData, metaData] = await Promise.all([
-            getTinyOrders(startLastMonth, endLastMonth),
-            getWakeOrders(startLastMonth, endLastMonth),
-            getGoogleAnalyticsData(startLastMonth, endLastMonth),
-            getMetaAdsInsights(startLastMonth, endLastMonth)
+            getTinyOrders(startLastMonth, endLastMonth).catch(() => []),
+            getWakeOrders(startLastMonth, endLastMonth).catch(() => []),
+            getGoogleAnalyticsData(startLastMonth, endLastMonth).catch(() => null),
+            getMetaAdsInsights(startLastMonth, endLastMonth).catch(() => null)
         ]);
 
         console.log(`[LastMonth] 📦 Raw data: Tiny=${tinyOrders?.length || 0} orders, Wake=${wakeOrders?.length || 0} orders`);

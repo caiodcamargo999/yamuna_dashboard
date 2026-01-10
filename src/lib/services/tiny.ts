@@ -236,7 +236,7 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     // Instead we use it per-request inside `fetchPage`
 
     const MAX_CONCURRENCY = 1; // Strict linear fetching
-    const BATCH_DELAY = 4000; // 4 seconds delay to ensure we stay under rate limit (safe guard)
+    const BATCH_DELAY = 1250; // 1.25s delay (balance between speed and rate limit)
 
     // Inner function to fetch a single page
     const fetchPage = async (p: number): Promise<{ orders: TinyOrderBasic[], hasMore: boolean, fullPage: boolean }> => {
@@ -259,8 +259,8 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
                     const data = await res.json();
 
                     if (data.retorno?.codigo_erro === 6) { // Rate limit
-                        console.warn(`[Tiny API] 🚫 Rate Limit (Page ${p}). Waiting...`);
-                        await new Promise(r => setTimeout(r, 5000));
+                        console.warn(`[Tiny API] 🚫 Rate Limit (Page ${p}). Waiting 2s...`);
+                        await new Promise(r => setTimeout(r, 2000));
                         retries++;
                         continue;
                     }

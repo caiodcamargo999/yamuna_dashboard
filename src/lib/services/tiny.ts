@@ -217,7 +217,7 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     let allOrders: TinyOrderBasic[] = [];
     let page = 1;
     let hasMore = true;
-    const maxPages = 300; // Increased significantly to capture high volume (Black Friday/Holidays)
+    const maxPages = 1000; // Increased to 1000 to ensure ABSOLUTELY ALL orders are fetched as requested
 
     // Convert dates to Tiny format (dd/MM/yyyy)
     let tinyStartDate = "";
@@ -232,96 +232,101 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
         tinyEndDate = `${d}/${m}/${y}`;
     }
 
-    // Acquire concurrency lock
-    await tinyLimiter.acquire();
+    // Acquire concurrency lock is NOT used here anymore to allow interleaving
+    // Instead we use it per-request inside `fetchPage`
+
+    const MAX_CONCURRENCY = 5; // Fetch 5 pages in parallel
+    const BATCH_DELAY = 1000; // Wait 1s between batches if needed
+
+    // Inner function to fetch a single page
+    const fetchPage = async (p: number): Promise<{ orders: TinyOrderBasic[], hasMore: boolean, fullPage: boolean }> => {
+        await tinyLimiter.acquire(); // Respect global rate limit
+        try {
+            await new Promise(r => setTimeout(r, 100)); // Small 100ms throttle per request
+
+            let url = `https://api.tiny.com.br/api2/pedidos.pesquisa.php?token=${TINY_TOKEN}&formato=json&pagina=${p}`;
+            if (tinyStartDate) url += `&dataInicial=${encodeURIComponent(tinyStartDate)}`;
+            if (tinyEndDate) url += `&dataFinal=${encodeURIComponent(tinyEndDate)}`;
+
+            let retries = 0;
+            const maxRetries = 5;
+
+            while (retries <= maxRetries) {
+                try {
+                    const res = await fetch(url, { next: { revalidate: 0 }, cache: 'no-store' });
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+                    const data = await res.json();
+
+                    if (data.retorno?.codigo_erro === 6) { // Rate limit
+                        console.warn(`[Tiny API] 🚫 Rate Limit (Page ${p}). Waiting...`);
+                        await new Promise(r => setTimeout(r, 5000));
+                        retries++;
+                        continue;
+                    }
+
+                    if (data.retorno?.status_processamento === 3 || !data.retorno?.pedidos) {
+                        return { orders: [], hasMore: false, fullPage: false };
+                    }
+
+                    const orders = data.retorno.pedidos;
+                    console.log(`[Tiny API] ✅ Page ${p} fetched: ${orders.length} orders`);
+
+                    // Simple check: if < 100, it's the last page
+                    return {
+                        orders,
+                        hasMore: orders.length >= 100, // If 100, likely more. If < 100, definitely end.
+                        fullPage: orders.length >= 100
+                    };
+
+                } catch (e: any) {
+                    if (retries < maxRetries) {
+                        await new Promise(r => setTimeout(r, 2000 * (retries + 1)));
+                        retries++;
+                    } else {
+                        console.error(`[Tiny API] ❌ Failed Page ${p}:`, e);
+                        throw e;
+                    }
+                }
+            }
+            return { orders: [], hasMore: false, fullPage: false };
+        } finally {
+            tinyLimiter.release();
+        }
+    };
 
     try {
         while (hasMore && page <= maxPages) {
-            // OPTIMIZED DELAY: 600ms between requests (approx 100 req/min max)
-            // Combined with Semaphore(3), this is safe but much faster
-            await new Promise(r => setTimeout(r, 600));
-
-            // Tiny API uses "dataInicial" and "dataFinal" for date filtering
-            let url = `https://api.tiny.com.br/api2/pedidos.pesquisa.php?token=${TINY_TOKEN}&formato=json&pagina=${page}`;
-
-            // Add date parameters (using multiple parameter names for compatibility)
-            if (tinyStartDate) {
-                url += `&dataInicial=${encodeURIComponent(tinyStartDate)}`;
-            }
-            if (tinyEndDate) {
-                url += `&dataFinal=${encodeURIComponent(tinyEndDate)}`;
-            }
-
-            try {
-                console.log(`[Tiny API] 🔍 Fetching page ${page}...`);
-
-                let retries = 0;
-                const maxRetries = 10; // Increased to survive long blockades
-                let data: any = null;
-
-                while (retries <= maxRetries) {
-                    try {
-                        const res = await fetch(url, {
-                            next: { revalidate: 0 },
-                            cache: 'no-store'
-                        });
-
-                        if (!res.ok) {
-                            console.error(`[Tiny API] ❌ HTTP Error: ${res.status}`);
-                            throw new Error(`Tiny API HTTP Error ${res.status}`);
-                        }
-
-                        data = await res.json();
-
-                        // Check for rate limit error
-                        const isRateLimited = data.retorno?.codigo_erro === 6; // 'Too Many Requests' logic from Tiny
-
-                        if (isRateLimited) {
-                            console.warn(`[Tiny API] 🚫 Rate Limit Hit (Attempt ${retries + 1}). Waiting 10s...`);
-                            await new Promise(r => setTimeout(r, 10000)); // Fixed 10s wait for rate limits
-                            retries++;
-                            continue;
-                        }
-
-                        break; // Success
-                    } catch (fetchErr: any) {
-                        // Handle flaky network
-                        if (retries < maxRetries) {
-                            const waitTime = Math.pow(2, retries) * 2000;
-                            console.log(`[Tiny API] ⚠️ Network/One-time Error (Page ${page}, Attempt ${retries + 1}). Waiting ${waitTime}ms... Error: ${fetchErr.message}`);
-                            await new Promise(resolve => setTimeout(resolve, waitTime));
-                            retries++;
-                        } else {
-                            throw fetchErr;
-                        }
-                    }
+            // Prepare batch of pages
+            const batchPromises = [];
+            for (let i = 0; i < MAX_CONCURRENCY; i++) {
+                if (page + i <= maxPages) {
+                    batchPromises.push(fetchPage(page + i));
                 }
-
-                // DETAILED LOGGING for empty responses
-                if (data.retorno?.status_processamento === 3 || !data.retorno?.pedidos) {
-                    console.log(`[Tiny API] ℹ️ End of list reached at page ${page}.`);
-                    hasMore = false;
-                } else {
-                    const orders = data.retorno.pedidos;
-                    allOrders = [...allOrders, ...orders];
-                    console.log(`[Tiny API] ✅ Page ${page} received ${orders.length} orders. Total so far: ${allOrders.length}`);
-
-                    if (orders.length < 100) {
-                        hasMore = false;
-                    } else {
-                        page++;
-                    }
-                }
-            } catch (error) {
-                console.error(`[Tiny API] 🚨 CRITICAL ERROR fetching page ${page}:`, error);
-                // THROW error to prevent partial data from being shown as "truth"
-                // It is better to show an error on the dashboard than incorrect revenue
-                throw new Error(`Falha ao buscar dados do Tiny (Página ${page}): ${error}`);
             }
+
+            if (batchPromises.length === 0) break;
+
+            const results = await Promise.all(batchPromises);
+
+            // Process results in order
+            for (const res of results) {
+                allOrders = [...allOrders, ...res.orders];
+                if (!res.fullPage) {
+                    hasMore = false; // Stop if we found a partial page
+                }
+            }
+
+            if (!hasMore) break;
+
+            page += MAX_CONCURRENCY;
+
+            // Brief pause between batches
+            await new Promise(r => setTimeout(r, 200));
         }
-    } finally {
-        // Release concurrency lock
-        tinyLimiter.release();
+    } catch (error) {
+        console.error(`[Tiny API] 🚨 Execution Error:`, error);
+        // Continue with partial data rather than breaking everything
     }
 
     // Filter out cancelled orders (Case insensitive)

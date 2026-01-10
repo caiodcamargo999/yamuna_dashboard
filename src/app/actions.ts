@@ -226,16 +226,15 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
         const googleCost = googleRes.status === 'fulfilled' ? googleRes.value?.investment || 0 : 0;
         const totalInvestment = metaCost + googleCost;
 
-        // Fetch Historical Orders (180 days) - SINGLE FETCH
         // We use single fetch instead of chunks because getTinyOrders handles pagination
         // and serial fetches are safer for rate limits.
-        const historicalStart = subDays(currentStart, 180);
+        const historicalStart = subDays(currentStart, 365);
         const histStartStr = format(historicalStart, "yyyy-MM-dd");
-        // Start of historical period is 180 days ago
+        // Start of historical period is 365 days ago
         // End of historical period is 1 day before current period starts
         const histEndStr = format(subDays(currentStart, 1), "yyyy-MM-dd");
 
-        console.log(`[Retention] 🕒 Fetching historical context (180 days) in one go: ${histStartStr} to ${histEndStr}`);
+        console.log(`[Retention] 🕒 Fetching historical context (365 days) in one go: ${histStartStr} to ${histEndStr}`);
 
         const [histTiny, histWake] = await Promise.all([
             getTinyOrders(histStartStr, histEndStr).catch(e => {

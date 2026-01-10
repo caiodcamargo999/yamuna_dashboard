@@ -1,5 +1,5 @@
 import { Header } from "@/components/layout/Header";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { fetchProductsData } from "@/app/products-actions";
 import { Suspense } from "react";
 
@@ -96,7 +96,22 @@ export default async function ProductsPage(props: Props) {
                                                         {product.revenuePercentage.toFixed(2)}%
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-right font-mono font-bold">
+                                                <td className="px-6 py-4 text-right font-mono font-bold flex justify-end items-center gap-2">
+                                                    {/* Trend Indicator */}
+                                                    {product.trend && (
+                                                        <div className={`flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${product.trend.direction === 'up'
+                                                            ? 'text-emerald-400 bg-emerald-500/10'
+                                                            : product.trend.direction === 'down'
+                                                                ? 'text-rose-400 bg-rose-500/10'
+                                                                : 'text-slate-500 bg-slate-500/10'
+                                                            }`}>
+                                                            {product.trend.direction === 'up' && <TrendingUp size={12} />}
+                                                            {product.trend.direction === 'down' && <TrendingDown size={12} />}
+                                                            {product.trend.direction === 'neutral' && <Minus size={12} />}
+                                                            <span>{product.trend.value > 0 ? `${product.trend.value.toFixed(0)}%` : '-'}</span>
+                                                        </div>
+                                                    )}
+
                                                     <span className={`${isClassA ? 'text-emerald-400' : isClassB ? 'text-amber-400' : 'text-slate-500'}`}>
                                                         {product.percentage.toFixed(2)}%
                                                     </span>

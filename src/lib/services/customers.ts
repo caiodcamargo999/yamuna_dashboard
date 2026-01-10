@@ -230,19 +230,19 @@ export function countFirstTimeBuyers(
         if (name && name !== 'Cliente' && name.length > 3) {
             existingNames.add(normalizeName(name));
         }
-        
+
         existingIds.add(getCustomerId(order));
     });
 
     // Count unique new customers in current period
     const newCustomerIds = new Set<string>();
-    
+
     // We need to track *who* we've already counted as new/returning in this batch to avoid double counting
     const processedCurrentIds = new Set<string>();
 
     currentPeriodOrders.forEach(order => {
         const mainId = getCustomerId(order);
-        
+
         if (processedCurrentIds.has(mainId)) return; // Already processed this customer
         processedCurrentIds.add(mainId);
 
@@ -262,7 +262,7 @@ export function countFirstTimeBuyers(
                 if (existingNames.has(normalizeName(name))) isReturning = true;
             }
         }
-        
+
         if (!isReturning && existingIds.has(mainId)) isReturning = true;
 
         if (!isReturning) {
@@ -284,19 +284,22 @@ export function calculateRevenueSegmentation(
     const existingIds = new Set<string>();
 
     historicalOrders.forEach(order => {
+        // IMPROVED: Strict normalization for index
         const cpf = getCustomerCpf(order);
-        if (cpf) existingCpfs.add(cpf);
+        if (cpf && cpf.length >= 11) existingCpfs.add(cpf); // Only add valid-looking CPFs
 
         const email = getCustomerEmail(order);
-        if (email) existingEmails.add(email.toLowerCase());
+        if (email && email.includes('@')) existingEmails.add(email.toLowerCase().trim());
 
         const name = getCustomerName(order);
         if (name && name !== 'Cliente' && name.length > 3) {
             existingNames.add(normalizeName(name));
         }
-        
+
         existingIds.add(getCustomerId(order));
     });
+
+    console.log(`[Segmentation Debug] Historical Indexes Built: CPFs=${existingCpfs.size}, Emails=${existingEmails.size}, Names=${existingNames.size}`);
 
     let newRevenue = 0;
     let retentionRevenue = 0;
@@ -312,26 +315,26 @@ export function calculateRevenueSegmentation(
     currentPeriodOrders.forEach(order => {
         const orderValue = order.total || 0;
         const mainId = getCustomerId(order);
-        
+
         let isReturning = false;
 
-        // Check CPF
+        // Check CPF (Primary Match)
         const cpf = getCustomerCpf(order);
         if (cpf && existingCpfs.has(cpf)) {
             isReturning = true;
             matchByCpf++;
         }
 
-        // Check Email
+        // Check Email (Secondary Match)
         if (!isReturning) {
             const email = getCustomerEmail(order);
-            if (email && existingEmails.has(email.toLowerCase())) {
+            if (email && existingEmails.has(email.toLowerCase().trim())) {
                 isReturning = true;
                 matchByEmail++;
             }
         }
 
-        // Check Name (Fallback)
+        // Check Name (Fallback Match)
         if (!isReturning) {
             const name = getCustomerName(order);
             if (name && name !== 'Cliente' && name.length > 3) {
@@ -341,8 +344,8 @@ export function calculateRevenueSegmentation(
                 }
             }
         }
-        
-        // Check ID (Legacy)
+
+        // Check ID (Legacy Match)
         if (!isReturning && existingIds.has(mainId)) {
             isReturning = true;
             matchById++;
@@ -358,7 +361,7 @@ export function calculateRevenueSegmentation(
     });
 
     console.log(`[Segmentation] 🔢 Match Analysis: CPF=${matchByCpf}, Email=${matchByEmail}, Name=${matchByName}, ID=${matchById}`);
-    console.log(`[Segmentation]    Total Orders: ${currentPeriodOrders.length}, Returning: ${matchByCpf + matchByEmail + matchByName + matchById}`);
+    console.log(`[Segmentation]    Total Current Orders: ${currentPeriodOrders.length}, Classified Returning: ${matchByCpf + matchByEmail + matchByName + matchById}`);
 
     return {
         newRevenue,

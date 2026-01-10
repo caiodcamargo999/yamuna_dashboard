@@ -96,6 +96,7 @@ export async function getTopProductsByPeriod(
         }
     }
 
+
     console.warn(`[Products] ⚠️ Missing GA4 credentials:`);
     console.warn(`  - GA4_PROPERTY_ID: ${GA4_PROPERTY_ID ? 'OK' : 'MISSING'}`);
     console.warn(`  - GOOGLE_CLIENT_ID: ${CLIENT_ID ? 'OK' : 'MISSING'}`);
@@ -103,26 +104,26 @@ export async function getTopProductsByPeriod(
     console.warn(`  - GOOGLE_REFRESH_TOKEN: ${REFRESH_TOKEN ? 'OK' : 'MISSING'}`);
     console.log(`[Products] ⚠️ Cannot fetch products without GA4 credentials`);
     // 2. FALLBACK: Fetch from Tiny with Item Details
-    console.log(`[Products] ⚠️ GA4 method failed/skipped. Using Tiny fallback (Last 50 orders).`);
+    console.log(`[Products] ⚠️ GA4 method failed/skipped. Using Tiny fallback (Last 200 orders).`);
 
     try {
         const tinyOrders = await getTinyOrders(startDate, endDate);
 
-        // Take latest 50 orders to avoid timeout
-        const sampleOrders = tinyOrders.slice(0, 50);
+        // Take latest 200 orders to avoid timeout but get better sample
+        const sampleOrders = tinyOrders.slice(0, 200);
         console.log(`[Products] 🐌 Fetching details for ${sampleOrders.length} orders individually...`);
 
-        const TINY_TOKEN = process.env.TINY_TOKEN;
+        const TINY_TOKEN = process.env.TINY_API_TOKEN;
         const productsMap = new Map<string, { code: string; name: string; quantity: number; revenue: number }>();
 
         // Fetch details in parallel chunks
-        const chunkSize = 5;
+        const chunkSize = 10; // Increased chunk size slightly
         for (let i = 0; i < sampleOrders.length; i += chunkSize) {
             const chunk = sampleOrders.slice(i, i + chunkSize);
             await Promise.all(chunk.map(async (order) => {
                 try {
                     const url = `https://api.tiny.com.br/api2/pedido.obter.php?token=${TINY_TOKEN}&id=${order.id}&formato=json`;
-                    const res = await fetch(url);
+                    const res = await fetch(url, { next: { revalidate: 3600 } }); // Cache individual order details for 1 hour
                     const data = await res.json();
 
                     const orderItems = data.retorno?.pedido?.itens || [];
@@ -163,7 +164,7 @@ export async function getTopProductsByPeriod(
                     productName: p.name, // Map 'name' to 'productName'
                     quantity: p.quantity,
                     revenue: p.revenue,
-                    percentage: (p.revenue / totalRev) * 100 // This is the individual product percentage
+                    percentage: totalRev > 0 ? (p.revenue / totalRev) * 100 : 0
                 };
             });
 
@@ -175,3 +176,4 @@ export async function getTopProductsByPeriod(
         return [];
     }
 }
+

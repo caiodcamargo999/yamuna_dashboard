@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { CreativeModal } from "@/components/meta/CreativeModal";
-import { Filter, Layers, Zap, DollarSign, MousePointer, ShoppingCart } from "lucide-react";
+import { Filter, Layers, Zap, DollarSign, MousePointer, ShoppingCart, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Creative {
@@ -27,6 +27,8 @@ interface Creative {
     cpl: number;
     body?: string;
     title?: string;
+    hookRate?: number;
+    epc?: number;
 }
 
 interface MetaAdsClientProps {
@@ -35,6 +37,8 @@ interface MetaAdsClientProps {
     endDate: string;
 }
 
+type SortKey = keyof Creative | 'hookRate' | 'epc';
+
 export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientProps) {
     const [selectedCreative, setSelectedCreative] = useState<Creative | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,6 +46,45 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
     // Filter states
     const [metricFilter, setMetricFilter] = useState<string>("all");
     const [objectiveFilter, setObjectiveFilter] = useState<string>("all");
+
+    // Sorting State
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
+        key: 'spend',
+        direction: 'desc'
+    });
+
+    // Handle Column Header Click
+    const handleSort = (key: string) => {
+        setSortConfig(current => {
+            if (current.key === key) {
+                return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key, direction: 'desc' }; // Default to descending for metrics
+        });
+    };
+
+    // Handle Dropdown Filter Change (also updates sort)
+    const handleMetricFilterChange = (value: string) => {
+        setMetricFilter(value);
+        if (value !== 'all') {
+            const map: Record<string, string> = {
+                'roas': 'roas',
+                'cpa': 'cpa',
+                'ctr': 'ctr',
+                'spend': 'spend',
+                'revenue': 'revenue',
+                'hook': 'hookRate',
+                'epc': 'epc'
+            };
+
+            const key = map[value];
+            if (key) {
+                // CPA and CPL are better when lower
+                const direction = key === 'cpa' || key === 'cpl' ? 'asc' : 'desc';
+                setSortConfig({ key, direction });
+            }
+        }
+    };
 
     // Get unique objectives for filter dropdown
     const uniqueObjectives = useMemo(() => {
@@ -58,22 +101,20 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
             filtered = filtered.filter(c => c.campaignObjective === objectiveFilter);
         }
 
-        // Filter by metric (sort)
-        if (metricFilter !== "all") {
-            filtered.sort((a, b) => {
-                switch (metricFilter) {
-                    case "roas": return b.roas - a.roas;
-                    case "cpa": return a.cpa - b.cpa; // Lower is better
-                    case "ctr": return b.ctr - a.ctr;
-                    case "spend": return b.spend - a.spend;
-                    case "revenue": return b.revenue - a.revenue;
-                    default: return 0;
-                }
-            });
-        }
+        // Apply Sorting
+        filtered.sort((a, b) => {
+            const key = sortConfig.key as keyof Creative;
+
+            const valA = a[key] ?? 0;
+            const valB = b[key] ?? 0;
+
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
 
         return filtered;
-    }, [creatives, metricFilter, objectiveFilter]);
+    }, [creatives, objectiveFilter, sortConfig]);
 
     const handleThumbnailClick = (creative: Creative) => {
         setSelectedCreative(creative);
@@ -83,6 +124,14 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setTimeout(() => setSelectedCreative(null), 300);
+    };
+
+    // Helper for rendering sort arrow
+    const SortIcon = ({ columnKey }: { columnKey: string }) => {
+        if (sortConfig.key !== columnKey) return <ArrowUpDown size={12} className="ml-1 opacity-20" />;
+        return sortConfig.direction === 'asc'
+            ? <ArrowUp size={12} className="ml-1 text-indigo-400" />
+            : <ArrowDown size={12} className="ml-1 text-indigo-400" />;
     };
 
     return (
@@ -116,13 +165,15 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
                             {/* Metric Filter */}
                             <select
                                 value={metricFilter}
-                                onChange={(e) => setMetricFilter(e.target.value)}
+                                onChange={(e) => handleMetricFilterChange(e.target.value)}
                                 className="text-xs bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 hover:bg-slate-800 transition-colors cursor-pointer"
                             >
                                 <option value="all">Todas Métricas</option>
                                 <option value="roas">Melhor ROAS</option>
                                 <option value="cpa">Menor CPA</option>
                                 <option value="ctr">Melhor CTR</option>
+                                <option value="hook">Melhor Hook</option>
+                                <option value="epc">Melhor EPC</option>
                                 <option value="spend">Maior Gasto</option>
                                 <option value="revenue">Maior Receita</option>
                             </select>
@@ -151,25 +202,56 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
 
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left border-collapse">
-                        <thead className="bg-slate-950/60 text-slate-400 font-semibold text-xs uppercase tracking-wider backdrop-blur-sm">
+                        <thead className="bg-slate-950/60 text-slate-400 font-semibold text-xs uppercase tracking-wider backdrop-blur-sm select-none">
                             <tr>
                                 <th className="px-6 py-4">Campanha / Anúncio</th>
                                 <th className="px-6 py-4 text-center">Thumbnail</th>
-                                <th className="px-6 py-4 text-right cursor-help" title="Custo publicidade">Inv.</th>
-                                <th className="px-6 py-4 text-right cursor-help" title="Custo por Clique">CPC</th>
-                                <th className="px-6 py-4 text-right cursor-help" title="Click Through Rate">CTR</th>
-                                <th className="px-6 py-4 text-right cursor-help" title="Leads capturados">Leads</th>
-                                <th className="px-6 py-4 text-right cursor-help" title="Custo por Lead">CPL</th>
-                                <th className="px-6 py-4 text-right cursor-help" title="Compras realizadas">Compras</th>
-                                <th className="px-6 py-4 text-right cursor-help" title="Custo por Aquisição">CPA</th>
-                                <th className="px-6 py-4 text-right cursor-help" title="Receita gerada">Receita</th>
-                                <th className="px-6 py-4 text-right cursor-help" title="Retorno sobre investimento">ROAS</th>
+
+                                <th onClick={() => handleSort('spend')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors group" title="Custo publicidade">
+                                    <div className="flex items-center justify-end">Inv. <SortIcon columnKey="spend" /></div>
+                                </th>
+
+                                <th onClick={() => handleSort('ctr')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors group" title="Click Through Rate">
+                                    <div className="flex items-center justify-end">CTR <SortIcon columnKey="ctr" /></div>
+                                </th>
+
+                                <th onClick={() => handleSort('hookRate')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors group" title="Hook Rate (3s / Impressões)">
+                                    <div className="flex items-center justify-end">Hook <SortIcon columnKey="hookRate" /></div>
+                                </th>
+
+                                <th onClick={() => handleSort('leads')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors group" title="Leads capturados">
+                                    <div className="flex items-center justify-end">Leads <SortIcon columnKey="leads" /></div>
+                                </th>
+
+                                <th onClick={() => handleSort('cpl')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors group" title="Custo por Lead">
+                                    <div className="flex items-center justify-end">CPL <SortIcon columnKey="cpl" /></div>
+                                </th>
+
+                                <th onClick={() => handleSort('purchases')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors group" title="Compras realizadas">
+                                    <div className="flex items-center justify-end">Compras <SortIcon columnKey="purchases" /></div>
+                                </th>
+
+                                <th onClick={() => handleSort('cpa')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors group" title="Custo por Aquisição">
+                                    <div className="flex items-center justify-end">CPA <SortIcon columnKey="cpa" /></div>
+                                </th>
+
+                                <th onClick={() => handleSort('epc')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors group" title="Earnings Per Click">
+                                    <div className="flex items-center justify-end">EPC <SortIcon columnKey="epc" /></div>
+                                </th>
+
+                                <th onClick={() => handleSort('revenue')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors group" title="Receita gerada">
+                                    <div className="flex items-center justify-end">Receita <SortIcon columnKey="revenue" /></div>
+                                </th>
+
+                                <th onClick={() => handleSort('roas')} className="px-6 py-4 text-right cursor-pointer hover:text-white transition-colors group" title="Retorno sobre investimento">
+                                    <div className="flex items-center justify-end">ROAS <SortIcon columnKey="roas" /></div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5 text-slate-300">
                             {filteredCreatives.length === 0 ? (
                                 <tr>
-                                    <td colSpan={11} className="px-6 py-12 text-center text-slate-500 bg-slate-900/20">
+                                    <td colSpan={13} className="px-6 py-12 text-center text-slate-500 bg-slate-900/20">
                                         <div className="flex flex-col items-center gap-3">
                                             <div className="p-3 rounded-full bg-slate-800/50">
                                                 <Layers className="text-slate-600" size={24} />
@@ -182,7 +264,7 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
                             ) : (
                                 filteredCreatives.map((ad: Creative, i: number) => (
                                     <tr key={ad.id} className="group hover:bg-white/5 transition-all duration-200">
-                                        <td className="px-6 py-4 max-w-[240px]">
+                                        <td className="px-6 py-4 max-w-[200px]">
                                             <div className="flex items-start gap-3">
                                                 <span className="text-slate-500 font-mono text-xs mt-0.5 w-5 text-right">{i + 1}.</span>
                                                 <div>
@@ -231,15 +313,26 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
                                         <td className="px-6 py-4 text-right font-mono text-slate-300">
                                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.spend)}
                                         </td>
-                                        <td className="px-6 py-4 text-right font-mono text-slate-400 text-xs">
-                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.cpc)}
-                                        </td>
                                         <td className="px-6 py-4 text-right font-mono">
                                             <div className="inline-flex items-center px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                                                 <MousePointer size={10} className="mr-1" />
                                                 {ad.ctr.toFixed(2)}%
                                             </div>
                                         </td>
+                                        <td className="px-6 py-4 text-right font-mono text-xs">
+                                            {/* HOOK RATE */}
+                                            {ad.creativeType === 'video' ? (
+                                                <span className={cn(
+                                                    "px-1.5 py-0.5 rounded border",
+                                                    (ad.hookRate || 0) > 30 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                                                        (ad.hookRate || 0) > 20 ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20" :
+                                                            "bg-slate-800 text-slate-400 border-slate-700"
+                                                )}>
+                                                    {(ad.hookRate || 0).toFixed(1)}%
+                                                </span>
+                                            ) : <span className="text-slate-600">-</span>}
+                                        </td>
+                                        {/* HOLD RATE REMOVED */}
                                         <td className="px-6 py-4 text-right font-mono font-bold text-indigo-400">
                                             {ad.leads}
                                         </td>
@@ -251,6 +344,10 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
                                         </td>
                                         <td className="px-6 py-4 text-right font-mono text-xs text-slate-400">
                                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.cpa)}
+                                        </td>
+                                        <td className="px-6 py-4 text-right font-mono text-xs font-bold text-indigo-300">
+                                            {/* EPC */}
+                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.epc || 0)}
                                         </td>
                                         <td className="px-6 py-4 text-right font-mono text-emerald-400 font-bold">
                                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ad.revenue)}
@@ -272,22 +369,22 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
                         </tbody>
                     </table>
                 </div>
-            </div>
 
-            {/* Creative Modal */}
-            <CreativeModal
-                isOpen={isModalOpen}
-                onClose={handleCloseModal}
-                creative={selectedCreative ? {
-                    name: selectedCreative.name,
-                    imageUrl: selectedCreative.imageUrl,
-                    videoUrl: selectedCreative.videoUrl || undefined,
-                    embedHtml: selectedCreative.embedHtml || undefined,
-                    type: selectedCreative.creativeType,
-                    body: selectedCreative.body,
-                    title: selectedCreative.title
-                } : null}
-            />
+                {/* Creative Modal */}
+                <CreativeModal
+                    isOpen={isModalOpen}
+                    onClose={handleCloseModal}
+                    creative={selectedCreative ? {
+                        name: selectedCreative.name,
+                        imageUrl: selectedCreative.imageUrl,
+                        videoUrl: selectedCreative.videoUrl || undefined,
+                        embedHtml: selectedCreative.embedHtml || undefined,
+                        type: selectedCreative.creativeType,
+                        body: selectedCreative.body,
+                        title: selectedCreative.title
+                    } : null}
+                />
+            </div>
         </>
     );
 }

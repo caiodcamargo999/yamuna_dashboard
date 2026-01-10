@@ -82,7 +82,9 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
 
     // 1. Fetch Ad Insights (Performance)
     // We want the top spending ads in this period.
-    const insightsFields = "ad_id,ad_name,spend,clicks,ctr,cpc,purchase_roas,actions,action_values";
+    // REMOVED video fields that cause "not valid for fields param" error (#100)
+    // These metrics are returned inside the 'actions' list.
+    const insightsFields = "ad_id,ad_name,spend,clicks,ctr,cpc,purchase_roas,actions,action_values,impressions";
     const insightsUrl = `https://graph.facebook.com/v19.0/${ACCOUNT_ID}/insights?access_token=${ACCESS_TOKEN}&level=ad&fields=${insightsFields}&time_range=${time_range}&sort=spend_descending&limit=20`;
 
     try {
@@ -201,6 +203,7 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
 
             let spend = parseFloat(row.spend || "0");
             let clicks = parseInt(row.clicks || "0");
+            let impressions = parseInt(row.impressions || "0"); // Ensure impressions are parsed
             let ctr = parseFloat(row.ctr || "0");
 
             // Debug CTR only for first row to avoid spam
@@ -240,6 +243,37 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
 
             const cpa = purchases > 0 ? spend / purchases : 0;
             const cpl = leads > 0 ? spend / leads : 0;
+            const epc = clicks > 0 ? revenue / clicks : 0;
+
+            // Video Metrics Parsing
+            let plays3Sec = 0;
+            let thruPlays = 0;
+
+            const actionsList = row.actions || [];
+
+            for (const action of actionsList) {
+                const val = parseInt(action.value || "0");
+
+                // Hook Rate: video_view (Standard 3-second Play)
+                if (action.action_type === 'video_view') {
+                    plays3Sec += val;
+                }
+
+                // Hold Rate: ThruPlay
+                // We check for both common keys just in case
+                if (action.action_type === 'video_thruplay_watched_actions' || action.action_type === 'video_thruplay') {
+                    thruPlays += val;
+                }
+            }
+
+            // Hook Rate (3s / Impressions)
+            // Note: User requested 7s hook rate. API does not support 7s. Using 3s as proxy for now.
+            const hookRate = impressions > 0 ? (plays3Sec / impressions) * 100 : 0;
+
+            // Hold Rate (ThruPlay / Impressions) 
+            // Note: Standard definition. Some use ThruPlay/3sPlays but user asked for "Hold Rate" which usually implies retention against total reach.
+            const holdRate = impressions > 0 ? (thruPlays / impressions) * 100 : 0;
+
 
             // Determine creative type and URLs
             const videoId = creative.video_id || null;
@@ -250,7 +284,7 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
                 name: adDetails.name || row.ad_name,
                 status: adDetails.status || "UNKNOWN",
                 imageUrl: creative.image_url || creative.thumbnail_url || "",
-                videoUrl: null, // Will be populated in the next step
+                videoUrl: null,
                 videoId: videoId,
                 creativeType: hasVideo ? 'video' : 'image',
                 campaignObjective: adDetails.campaign?.objective || 'UNKNOWN',
@@ -264,6 +298,9 @@ export async function getMetaTopCreatives(startDate: string, endDate: string) {
                 cpa,
                 leads,
                 cpl,
+                epc,
+                hookRate,
+                holdRate,
                 body: creative.body || "",
                 title: creative.title || ""
             };

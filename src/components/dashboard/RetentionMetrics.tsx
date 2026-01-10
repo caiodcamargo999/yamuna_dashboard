@@ -1,8 +1,8 @@
 import { Suspense } from 'react';
 import { GlassCard } from "@/components/ui/GlassCard";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
-import { Users, AlertCircle } from "lucide-react";
 import { fetchRetentionMetrics } from "@/app/actions";
+import { AutoRefresh } from "@/components/dashboard/AutoRefresh";
 
 // Helper for GlassCard reuse
 function KPIGlassCard({
@@ -57,8 +57,12 @@ async function SalesRetentionData({ startDate, endDate }: { startDate: string, e
         // Fetch data (streaming)
         const data = await fetchRetentionMetrics(startDate, endDate);
 
+        // If data is zero (likely still processing in background or first load), trigger auto-refresh
+        const shouldRefresh = data.newRevenue === 0 && data.retentionRevenue === 0;
+
         return (
             <>
+                {shouldRefresh && <AutoRefresh interval={5000} />}
                 <KPIGlassCard label="Ticket Médio Novos" value={data.ticketAvgNew} prefix="R$ " delay={7} />
                 <KPIGlassCard label="Retenção" value={data.retentionRevenue} prefix="R$ " delay={8} />
                 <KPIGlassCard label="Receita Nova" value={data.newRevenue} prefix="R$ " delay={9} />
@@ -68,6 +72,7 @@ async function SalesRetentionData({ startDate, endDate }: { startDate: string, e
         console.error("[SalesRetentionData] Failed to fetch data:", error);
         return (
             <>
+                <AutoRefresh interval={5000} />
                 <KPIGlassCard label="Ticket Médio Novos" value={0} prefix="R$ " delay={7} />
                 <KPIGlassCard label="Retenção" value={0} prefix="R$ " delay={8} />
                 <KPIGlassCard label="Receita Nova" value={0} prefix="R$ " delay={9} />

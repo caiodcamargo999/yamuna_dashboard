@@ -235,21 +235,21 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     // Acquire concurrency lock is NOT used here anymore to allow interleaving
     // Instead we use it per-request inside `fetchPage`
 
-    const MAX_CONCURRENCY = 1; // Strict linear fetching
-    const BATCH_DELAY = 1250; // 1.25s delay (balance between speed and rate limit)
+    const MAX_CONCURRENCY = 3; // Aggressive fetching to avoid Vercel Timeout
+    const BATCH_DELAY = 1500; // 1.5s delay between batches (Avg 2 req/s)
 
     // Inner function to fetch a single page
     const fetchPage = async (p: number): Promise<{ orders: TinyOrderBasic[], hasMore: boolean, fullPage: boolean }> => {
         await tinyLimiter.acquire(); // Respect global rate limit
         try {
-            await new Promise(r => setTimeout(r, 100)); // Small 100ms throttle per request
+            await new Promise(r => setTimeout(r, 50)); // Tiny 50ms throttle per request
 
             let url = `https://api.tiny.com.br/api2/pedidos.pesquisa.php?token=${TINY_TOKEN}&formato=json&pagina=${p}`;
             if (tinyStartDate) url += `&dataInicial=${encodeURIComponent(tinyStartDate)}`;
             if (tinyEndDate) url += `&dataFinal=${encodeURIComponent(tinyEndDate)}`;
 
             let retries = 0;
-            const maxRetries = 5;
+            const maxRetries = 10; // Increased retries to survive rate limits
 
             while (retries <= maxRetries) {
                 try {
@@ -259,8 +259,8 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
                     const data = await res.json();
 
                     if (data.retorno?.codigo_erro === 6) { // Rate limit
-                        console.warn(`[Tiny API] 🚫 Rate Limit (Page ${p}). Waiting 2s...`);
-                        await new Promise(r => setTimeout(r, 2000));
+                        console.warn(`[Tiny API] 🚫 Rate Limit (Page ${p}). Waiting 3s...`);
+                        await new Promise(r => setTimeout(r, 3000));
                         retries++;
                         continue;
                     }

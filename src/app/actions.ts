@@ -202,8 +202,8 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
     const startStr = format(currentStart, "yyyy-MM-dd");
     const endStr = format(currentEnd, "yyyy-MM-dd");
 
-    // Cache key for this specific heavy calculation - v10
-    const cacheKey = `retention:v10:${startStr}:${endStr}`;
+    // Cache key for this specific heavy calculation - v13
+    const cacheKey = `retention:v13:${startStr}:${endStr}`;
 
     console.log(`[Retention] 📊 Starting retention fetch: ${startStr} to ${endStr}`);
 

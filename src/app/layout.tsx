@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LoadingIndicator } from "@/components/layout/LoadingIndicator";
+import { OnboardingModal } from "@/components/auth/OnboardingModal";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,6 +33,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <LoadingIndicator />
+        <OnboardingModal />
         {children}
       </body>
     </html>

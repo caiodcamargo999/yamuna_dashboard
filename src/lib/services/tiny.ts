@@ -235,8 +235,8 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     // Acquire concurrency lock is NOT used here anymore to allow interleaving
     // Instead we use it per-request inside `fetchPage`
 
-    const MAX_CONCURRENCY = 5; // Fetch 5 pages in parallel
-    const BATCH_DELAY = 1000; // Wait 1s between batches if needed
+    const MAX_CONCURRENCY = 1; // Reduced to 1 to avoid Rate Limits (Reliability > Speed)
+    const BATCH_DELAY = 1500; // Increased delay between batches
 
     // Inner function to fetch a single page
     const fetchPage = async (p: number): Promise<{ orders: TinyOrderBasic[], hasMore: boolean, fullPage: boolean }> => {

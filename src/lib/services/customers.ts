@@ -47,80 +47,30 @@ export interface RFMScore {
  * Priority: CPF/CNPJ (unique) > email > explicit customerId > name (fallback)
  */
 export function getCustomerId(order: any): string {
-    // PRIORITY 1: CPF/CNPJ (Most reliable - unique per customer)
-    const cpfCnpj =
-        order.customerCpfCnpj ||
-        order.cpf_cnpj ||
-        order.cnpj ||
-        order.cpf ||
-        order.cliente?.cpf_cnpj ||
-        order.cliente?.cnpj ||
-        order.raw?.cliente?.cpf_cnpj ||
-        order.raw?.cliente?.cnpj;
-
-    if (cpfCnpj) {
-        // Normalize CPF/CNPJ: remove all non-digits
-        const normalized = cpfCnpj.toString().replace(/\D/g, '');
-        if (normalized.length >= 11) { // Valid CPF (11) or CNPJ (14)
-            return `cpf_${normalized}`;
-        }
+    // 1. CPF/CNPJ (Highest Priority - Unique)
+    const rawCpf = order.customerCpfCnpj || order.cliente?.cpf_cnpj || order.cpf_cnpj || order.cnpj || order.cpf;
+    if (rawCpf) {
+        const cleanCpf = rawCpf.toString().replace(/\D/g, '');
+        if (cleanCpf.length >= 11) return `cpf_${cleanCpf}`;
     }
 
-    // PRIORITY 2: Email (Reliable when available)
-    if (order.customerEmail && order.customerEmail.includes('@')) {
-        return order.customerEmail.toLowerCase();
+    // 2. Email (Reliable)
+    const rawEmail = order.customerEmail || order.cliente?.email || order.email;
+    if (rawEmail && rawEmail.includes('@')) {
+        return rawEmail.toLowerCase().trim();
     }
 
-    // Try legacy email fields
-    const email =
-        order.email ||
-        order.cliente?.email ||
-        order.raw?.cliente?.email;
+    // 3. Customer ID (Service Specific)
+    if (order.customerId && !order.customerId.startsWith('unknown_')) return order.customerId;
+    if (order.cliente?.id || order.cliente?.codigo) return `tiny_id_${order.cliente?.id || order.cliente?.codigo}`;
 
-    if (email && email.includes('@')) {
-        return email.toLowerCase();
+    // 4. Name (Fallback - Normalized)
+    const rawName = order.customerName || order.cliente?.nome || order.nome;
+    if (rawName && rawName.length > 3 && rawName !== 'Cliente') {
+        return `name_${normalizeName(rawName)}`;
     }
 
-    // PRIORITY 3: Explicit customer ID (if not a fallback)
-    if (order.customerId && !order.customerId.startsWith('unknown_') && !order.customerId.startsWith('wake_customer_')) {
-        return order.customerId;
-    }
-
-    // Try other ID fields
-    const clienteId =
-        order.cliente_id ||
-        order.customer_id ||
-        order.raw?.cliente?.codigo ||
-        order.raw?.cliente?.id ||
-        order.raw?.id_cliente;
-
-    if (clienteId) {
-        return clienteId.toString();
-    }
-
-    // PRIORITY 4: Customer name (Last resort - improve normalization)
-    const customerName =
-        order.customerName ||
-        order.nome ||
-        order.cliente_nome ||
-        order.customer_name ||
-        order.cliente?.nome ||
-        order.raw?.nome ||
-        order.raw?.cliente?.nome;
-
-    if (customerName && customerName !== 'Cliente' && customerName.length > 3) {
-        // IMPROVED normalization: remove accents, lowercase, trim, remove punctuation, normalize spaces
-        const normalized = normalizeName(customerName);
-        return `name_${normalized}`;
-    }
-
-    // Last resort: use customerId even if it's a fallback
-    if (order.customerId) {
-        return order.customerId;
-    }
-
-    // Final fallback
-    return `unknown_${order.id || order.numero || Math.random()}`;
+    return `unknown_${order.id || Math.random()}`;
 }
 
 /**

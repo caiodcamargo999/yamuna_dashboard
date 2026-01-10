@@ -228,7 +228,7 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
 
         // We use single fetch instead of chunks because getTinyOrders handles pagination
         // and serial fetches are safer for rate limits.
-        const historicalStart = subDays(currentStart, 180); // Reduced to 180 days (6 months) to prevent Timeouts
+        const historicalStart = subDays(currentStart, 90); // Reduced to 90 days (3 months) to prioritize loading speed
         const histStartStr = format(historicalStart, "yyyy-MM-dd");
         // Start of historical period is 180 days ago
         // End of historical period is 1 day before current period starts

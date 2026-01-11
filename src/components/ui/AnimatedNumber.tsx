@@ -13,7 +13,7 @@ export function AnimatedNumber({ value, format = 'number', className }: Animated
     const spring = useSpring(0, { mass: 0.8, stiffness: 75, damping: 15 });
     const display = useTransform(spring, (current) => {
         if (format === 'currency') {
-            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(current);
+            return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(current);
         } else if (format === 'percent') {
             return current.toFixed(2) + '%';
         } else if (format === 'decimal') {

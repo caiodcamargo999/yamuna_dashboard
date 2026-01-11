@@ -9,7 +9,8 @@ import {
     Users,
     Target,
     Share2,
-    Activity
+    Activity,
+    ShieldAlert
 } from "lucide-react";
 
 export type ModuleKey =
@@ -23,7 +24,8 @@ export type ModuleKey =
     | 'rfm'
     | 'ga4_audience'
     | 'ga4_source'
-    | 'api_diag';
+    | 'api_diag'
+    | 'super_admin';
 
 export interface MenuItem {
     key: ModuleKey;
@@ -58,21 +60,21 @@ export const MENU_CONFIG: MenuItem[] = [
     {
         key: 'funil_loja',
         label: 'Funil Loja Virtual',
-        path: '/funnel',  // ✅ CORRIGIDO: era /funil
+        path: '/funnel',
         icon: Filter,
         moduleNeeded: 'wake_commerce'
     },
     {
         key: 'finance',
         label: 'Indicadores Financeiros',
-        path: '/finance',  // ✅ CORRIGIDO: era /financeiro
+        path: '/finance',
         icon: DollarSign,
         moduleNeeded: 'finance'
     },
     {
         key: 'curva_abc',
         label: 'Curva ABC (Tiny)',
-        path: '/products',  // ✅ CORRIGIDO: era /curva-abc
+        path: '/products',
         icon: BarChart,
         moduleNeeded: 'tiny_erp'
     },
@@ -100,8 +102,15 @@ export const MENU_CONFIG: MenuItem[] = [
     {
         key: 'api_diag',
         label: 'Diagnóstico de API',
-        path: '/diagnostics',  // ✅ CORRIGIDO: era /api-status
+        path: '/diagnostics',
         icon: Activity,
-        moduleNeeded: 'dashboard' // Everyone sees this for now or maybe admin only? Keeping basic
+        moduleNeeded: 'dashboard'
+    },
+    {
+        key: 'super_admin',
+        label: 'Super Admin',
+        path: '/admin',
+        icon: ShieldAlert,
+        moduleNeeded: 'super_admin'
     }
 ];

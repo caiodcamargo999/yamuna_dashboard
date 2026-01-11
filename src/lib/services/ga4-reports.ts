@@ -396,3 +396,69 @@ export function formatDuration(seconds: number): string {
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
+
+/**
+ * Fetch Daily Sessions by Device Category (Mobile vs Desktop)
+ * For the interactive area chart on dashboard
+ */
+export async function getGA4DailySessions(startDate: string, endDate: string) {
+    const analyticsData = getAnalyticsClient();
+    if (!analyticsData) {
+        console.error('[GA4 Daily Sessions] Missing credentials');
+        return null;
+    }
+
+    const safeEndDate = getSafeEndDate(endDate);
+    console.log(`[GA4 Daily Sessions] Fetching data from ${startDate} to ${safeEndDate}`);
+
+    try {
+        const report = await analyticsData.properties.runReport({
+            property: `properties/${GA4_PROPERTY_ID}`,
+            requestBody: {
+                dateRanges: [{ startDate, endDate: safeEndDate }],
+                dimensions: [
+                    { name: "date" },
+                    { name: "deviceCategory" }
+                ],
+                metrics: [
+                    { name: "sessions" }
+                ],
+                orderBys: [{ dimension: { dimensionName: "date" }, desc: false }]
+            }
+        });
+
+        // Group by date and split mobile/desktop
+        const dailyData: Record<string, { date: string, mobile: number, desktop: number }> = {};
+
+        (report.data.rows || []).forEach((row: any) => {
+            const rawDate = row.dimensionValues?.[0]?.value || "";
+            const deviceCategory = (row.dimensionValues?.[1]?.value || "").toLowerCase();
+            const sessions = parseInt(row.metricValues?.[0]?.value || "0");
+
+            // Format date from YYYYMMDD to YYYY-MM-DD
+            const formattedDate = rawDate.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+
+            if (!dailyData[formattedDate]) {
+                dailyData[formattedDate] = { date: formattedDate, mobile: 0, desktop: 0 };
+            }
+
+            if (deviceCategory === 'mobile') {
+                dailyData[formattedDate].mobile += sessions;
+            } else if (deviceCategory === 'desktop') {
+                dailyData[formattedDate].desktop += sessions;
+            } else if (deviceCategory === 'tablet') {
+                // Add tablet to desktop for simplification
+                dailyData[formattedDate].desktop += sessions;
+            }
+        });
+
+        const chartData = Object.values(dailyData).sort((a, b) => a.date.localeCompare(b.date));
+
+        console.log(`[GA4 Daily Sessions] Fetched ${chartData.length} days of data`);
+
+        return chartData;
+    } catch (error: any) {
+        console.error("[GA4 Daily Sessions] Error:", error.message);
+        return null;
+    }
+}

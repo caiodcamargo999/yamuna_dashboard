@@ -1,12 +1,12 @@
-import { Header } from "@/components/layout/Header";
+import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { fetchFunnelData } from "@/app/funnel-actions";
-import { MonthlyGoalEditor } from "@/components/funnel/MonthlyGoalEditor";
+import { GoalEditorWrapper } from "@/components/funnel/GoalEditorWrapper";
 import { FunnelVisualization } from "@/components/funnel/FunnelVisualization";
 import { MonthComparison } from "@/components/funnel/MonthComparison";
 import { TopProducts } from "@/components/funnel/TopProducts";
 import { ProjectionSection } from "@/components/funnel/ProjectionSection";
 import { ShoppingCart, TrendingUp, AlertCircle } from "lucide-react";
-import { GlassCard } from "@/components/ui/GlassCard";
+import { Card, CardContent } from "@/components/ui/card";
 
 // Force dynamic rendering to respect date filters
 export const dynamic = 'force-dynamic';
@@ -27,9 +27,17 @@ export default async function FunnelPage(props: Props) {
     const hasTransactionData = data.selectedPeriod.transactions > 0;
 
     return (
-        <>
-            <Header title="Funil Loja Virtual" />
-            <main className="p-6 space-y-6 overflow-y-auto w-full">
+        <div className="flex flex-1 flex-col gap-8 p-4 pt-0">
+            <div className="flex items-center justify-between py-6">
+                <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight first:mt-0">
+                    Funil Loja Virtual
+                </h2>
+                <div className="flex items-center space-x-2">
+                    <DateRangeFilter />
+                </div>
+            </div>
+
+            <main className="space-y-6 overflow-y-auto w-full">
                 {/* Data Status Alert - if no GA4 */}
                 {!hasGA4Data && (
                     <div className="bg-amber-950/30 border border-amber-900/50 rounded-xl p-4 flex items-start gap-3">
@@ -45,27 +53,27 @@ export default async function FunnelPage(props: Props) {
                 )}
 
                 {/* Monthly Goal Editor */}
-                <MonthlyGoalEditor
-                    month={data.currentMonth.month}
-                    year={data.currentMonth.year}
-                    currentRevenueGoal={data.currentMonth.goal?.revenue_goal || 0}
-                    currentTransactionsGoal={data.currentMonth.goal?.transactions_goal || 0}
-                    currentAdBudgetGoal={data.currentMonth.goal?.ad_budget_goal || 0}
+                <GoalEditorWrapper
+                    initialGoal={data.currentMonth.goal ? {
+                        month: `${data.currentMonth.year}-${String(data.currentMonth.month).padStart(2, '0')}`,
+                        revenue: data.currentMonth.goal.revenue_goal,
+                        transactions: data.currentMonth.goal.transactions_goal,
+                        investment: data.currentMonth.goal.ad_budget_goal
+                    } : null}
                 />
 
                 {/* Projection Section - Shows after user sets goals */}
                 <ProjectionSection
-                    currentMonthRevenue={data.currentMonth.revenue}
-                    currentMonthTransactions={data.currentMonth.transactions}
-                    currentMonthInvestment={data.currentMonth.investment}
-                    revenueGoal={data.currentMonth.goal?.revenue_goal || 0}
-                    transactionsGoal={data.currentMonth.goal?.transactions_goal || 0}
-                    adBudgetGoal={data.currentMonth.goal?.ad_budget_goal || 0}
-                    historicalConversionRate={data.historical.conversionRate}
-                    historicalAvgTicket={data.historical.avgTicket}
-                    historicalROAS={data.historical.roas}
-                    daysElapsed={data.currentMonth.daysElapsed}
-                    daysInMonth={data.currentMonth.daysInMonth}
+                    goal={data.currentMonth.goal ? {
+                        revenue: data.currentMonth.goal.revenue_goal || 0,
+                        transactions: data.currentMonth.goal.transactions_goal || 0,
+                        investment: data.currentMonth.goal.ad_budget_goal || 0
+                    } : null}
+                    currentData={{
+                        revenue: data.currentMonth.revenue,
+                        transactions: data.currentMonth.transactions,
+                        avgTicket: data.currentMonth.avgTicket
+                    }}
                 />
 
                 {/* Funnel Visualization */}
@@ -75,7 +83,7 @@ export default async function FunnelPage(props: Props) {
 
                 {/* Additional Metrics */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <GlassCard className="flex flex-col justify-center gap-2">
+                    <Card className="p-6 flex flex-col justify-center gap-2">
                         <p className="text-slate-400 text-sm">Ticket Médio</p>
                         <p className="text-white text-2xl font-bold">
                             R$ {data.selectedPeriod.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -85,9 +93,9 @@ export default async function FunnelPage(props: Props) {
                                 {data.selectedPeriod.transactions} transações
                             </p>
                         )}
-                    </GlassCard>
+                    </Card>
 
-                    <GlassCard className="flex flex-col justify-center gap-2">
+                    <Card className="p-6 flex flex-col justify-center gap-2">
                         <p className="text-slate-400 text-sm">Sessões Totais</p>
                         <p className="text-white text-2xl font-bold">
                             {data.selectedPeriod.sessions.toLocaleString('pt-BR')}
@@ -97,11 +105,11 @@ export default async function FunnelPage(props: Props) {
                                 <AlertCircle size={12} /> Estimativa
                             </p>
                         )}
-                    </GlassCard>
+                    </Card>
 
-                    <GlassCard className="flex items-center gap-4">
-                        <div className="p-3 bg-indigo-500/20 rounded-full">
-                            <ShoppingCart className="text-indigo-400" size={24} />
+                    <Card className="p-6 flex items-center gap-4">
+                        <div className="p-3 bg-muted rounded-full">
+                            <ShoppingCart className="text-muted-foreground" size={24} />
                         </div>
                         <div>
                             <p className="text-slate-400 text-sm mb-1">Eventos Carrinho</p>
@@ -109,9 +117,9 @@ export default async function FunnelPage(props: Props) {
                                 {data.selectedPeriod.addToCarts.toLocaleString('pt-BR')}
                             </p>
                         </div>
-                    </GlassCard>
+                    </Card>
 
-                    <GlassCard className="flex items-center gap-4">
+                    <Card className="p-6 flex items-center gap-4">
                         <div className="p-3 bg-emerald-500/20 rounded-full">
                             <TrendingUp className="text-emerald-400" size={24} />
                         </div>
@@ -121,7 +129,7 @@ export default async function FunnelPage(props: Props) {
                                 {data.selectedPeriod.conversionRate.toFixed(2)}%
                             </p>
                         </div>
-                    </GlassCard>
+                    </Card>
                 </div>
 
                 {/* Month Comparison */}
@@ -131,34 +139,42 @@ export default async function FunnelPage(props: Props) {
                 />
 
                 {/* Top Products */}
-                <TopProducts products={data.selectedPeriod.products} />
+                <TopProducts products={data.selectedPeriod.products.map(p => ({
+                    name: p.product || 'Produto desconhecido',
+                    quantity: p.quantity,
+                    revenue: p.revenue
+                }))} />
 
                 {/* Debug Info - Only show in development */}
                 {process.env.NODE_ENV === 'development' && (
-                    <details className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 text-xs">
-                        <summary className="text-slate-400 cursor-pointer font-mono mb-2">🐛 Debug Info</summary>
-                        <pre className="text-slate-500 overflow-auto">
-                            {JSON.stringify({
-                                selectedPeriod: {
-                                    sessions: data.selectedPeriod.sessions,
-                                    transactions: data.selectedPeriod.transactions,
-                                    revenue: data.selectedPeriod.revenue,
-                                    addToCarts: data.selectedPeriod.addToCarts,
-                                    checkouts: data.selectedPeriod.checkouts,
-                                },
-                                currentMonth: {
-                                    revenue: data.currentMonth.revenue,
-                                    transactions: data.currentMonth.transactions,
-                                    investment: data.currentMonth.investment,
-                                    goal: data.currentMonth.goal
-                                },
-                                hasGA4Data,
-                                hasTransactionData
-                            }, null, 2)}
-                        </pre>
-                    </details>
+                    <Card>
+                        <CardContent className="p-4">
+                            <details className="text-xs">
+                                <summary className="text-slate-400 cursor-pointer font-mono mb-2">🐛 Debug Info</summary>
+                                <pre className="text-slate-500 overflow-auto">
+                                    {JSON.stringify({
+                                        selectedPeriod: {
+                                            sessions: data.selectedPeriod.sessions,
+                                            transactions: data.selectedPeriod.transactions,
+                                            revenue: data.selectedPeriod.revenue,
+                                            addToCarts: data.selectedPeriod.addToCarts,
+                                            checkouts: data.selectedPeriod.checkouts,
+                                        },
+                                        currentMonth: {
+                                            revenue: data.currentMonth.revenue,
+                                            transactions: data.currentMonth.transactions,
+                                            investment: data.currentMonth.investment,
+                                            goal: data.currentMonth.goal
+                                        },
+                                        hasGA4Data,
+                                        hasTransactionData
+                                    }, null, 2)}
+                                </pre>
+                            </details>
+                        </CardContent>
+                    </Card>
                 )}
             </main>
-        </>
+        </div>
     );
 }

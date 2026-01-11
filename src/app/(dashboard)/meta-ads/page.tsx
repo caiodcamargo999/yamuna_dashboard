@@ -1,19 +1,18 @@
 // Server Component
 
-import { Header } from "@/components/layout/Header";
 import { Suspense } from "react";
 import { getMetaTopCreatives } from "@/lib/services/meta";
 import { MetaAdsClient } from "./MetaAdsClient";
-
+import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 
 // Enable ISR with 5 minute revalidation
 export const revalidate = 300;
 
 interface Props {
-    searchParams: {
+    searchParams: Promise<{
         start?: string;
         end?: string;
-    };
+    }>;
 }
 
 export default async function MetaAdsPage(props: Props) {
@@ -41,11 +40,15 @@ export default async function MetaAdsPage(props: Props) {
     const creatives = Array.isArray(creativesResult) ? creativesResult : [];
 
     return (
-        <>
-            <Suspense fallback={<div className="h-16 bg-slate-900 border-b border-slate-800" />}>
-                <Header title="Meta Ads - Criativos" />
-            </Suspense>
-            <main className="p-6 space-y-6 overflow-y-auto w-full">
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+            <div className="flex items-center justify-between py-6">
+                <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight first:mt-0">Meta Ads - Criativos</h2>
+                <div className="flex items-center space-x-2">
+                    <DateRangeFilter />
+                </div>
+            </div>
+
+            <main className="space-y-6 overflow-y-auto w-full">
                 {error && (
                     <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-4 mb-4">
                         <div className="flex items-center gap-2 text-red-500 font-bold mb-1">
@@ -61,6 +64,6 @@ export default async function MetaAdsPage(props: Props) {
 
                 <MetaAdsClient creatives={creatives} startDate={startDate} endDate={endDate} />
             </main>
-        </>
+        </div>
     );
 }

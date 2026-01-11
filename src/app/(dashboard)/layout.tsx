@@ -1,6 +1,11 @@
 import { cookies } from 'next/headers';
-import { Sidebar } from "@/components/layout/Sidebar";
 import { createClient } from "@/lib/supabase/server";
+import { AppSidebar } from "@/components/app-sidebar";
+import { SiteHeader } from "@/components/site-header";
+import {
+    SidebarInset,
+    SidebarProvider,
+} from "@/components/ui/sidebar";
 
 export default async function DashboardLayout({
     children,
@@ -55,25 +60,20 @@ export default async function DashboardLayout({
         targetTenantIdOrSlug = 'yamuna';
     }
 
-    // Default modules for fallback (prevents empty sidebar)
+    // Default modules for fallback
     let modules: string[] = ['dashboard', 'meta_ads', 'google_ads', 'tiny_erp', 'wake_commerce', 'finance', 'rfm', 'ga4'];
     let tenantName = "Yamuna";
 
     if (targetTenantIdOrSlug) {
-        // Fetch modules for this tenant (non-blocking, with timeout)
         try {
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetTenantIdOrSlug);
-
             const query = supabase.from('tenants').select('modules, name');
-
             if (isUuid) {
                 query.eq('id', targetTenantIdOrSlug);
             } else {
                 query.eq('slug', targetTenantIdOrSlug);
             }
-
             const { data: tenantData } = await query.single();
-
             if (tenantData) {
                 if (tenantData.modules && Array.isArray(tenantData.modules) && tenantData.modules.length > 0) {
                     modules = tenantData.modules;
@@ -84,22 +84,30 @@ export default async function DashboardLayout({
             }
         } catch (e) {
             console.warn('[Layout] Failed to fetch modules, using default:', e);
-            // Keep default modules
         }
     }
 
-    return (
-        <div className="min-h-screen bg-transparent">
-            {/* 
-               Sidebar is now FIXED (h-screen, sticky).
-               We need to add padding-left to the main content to avoid overlap.
-               Sidebar width is w-[260px] -> pl-[260px]
-            */}
-            <Sidebar user={userData} modules={modules} tenantName={tenantName} />
+    // Force Super Admin capabilities for specific user or role
+    if (isSuperAdmin || user?.email === 'caiomilennials@gmail.com') {
+        modules = [...modules, 'super_admin'];
+    }
 
-            <div className="lg:pl-[260px] w-full min-h-screen flex flex-col pt-16 lg:pt-0">
-                {children}
-            </div>
-        </div>
+    return (
+        <SidebarProvider
+            style={
+                {
+                    "--sidebar-width": "18rem",
+                    "--header-height": "4rem",
+                } as React.CSSProperties
+            }
+        >
+            <AppSidebar user={userData} modules={modules} tenantName={tenantName} />
+            <SidebarInset>
+                <SiteHeader />
+                <div className="flex flex-1 flex-col p-4 pt-0">
+                    {children}
+                </div>
+            </SidebarInset>
+        </SidebarProvider>
     );
 }

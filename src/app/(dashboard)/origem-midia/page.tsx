@@ -1,4 +1,4 @@
-import { Header } from "@/components/layout/Header";
+import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { fetchSourceMediumData } from "@/app/ga4-actions";
 import { formatDuration } from "@/lib/services/ga4-reports";
 
@@ -6,7 +6,7 @@ import { formatDuration } from "@/lib/services/ga4-reports";
 export const revalidate = 300;
 
 interface Props {
-    searchParams: { start?: string; end?: string };
+    searchParams: Promise<{ start?: string; end?: string }>;
 }
 
 export default async function OrigemMidiaPage(props: Props) {
@@ -18,22 +18,37 @@ export default async function OrigemMidiaPage(props: Props) {
 
     if (!data) {
         return (
-            <>
-                <Header title="Origem/Mídia (GA4)" />
+            <div className="flex flex-1 flex-col gap-8 p-4 pt-0">
+                <div className="flex items-center justify-between py-6">
+                    <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight first:mt-0">
+                        Origem/Mídia (GA4)
+                    </h2>
+                    <div className="flex items-center space-x-2">
+                        <DateRangeFilter />
+                    </div>
+                </div>
                 <main className="p-6">
                     <div className="bg-red-900/20 border border-red-800 rounded-xl p-6 text-center">
                         <p className="text-red-400">Erro ao carregar dados do GA4</p>
                         <p className="text-red-500 text-sm mt-2">Verifique as credenciais do Google Analytics</p>
                     </div>
                 </main>
-            </>
+            </div>
         );
     }
 
     return (
-        <>
-            <Header title="Origem/Mídia (GA4)" />
-            <main className="p-6 space-y-6 overflow-y-auto w-full">
+        <div className="flex flex-1 flex-col gap-8 p-4 pt-0">
+            <div className="flex items-center justify-between py-6">
+                <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight first:mt-0">
+                    Origem/Mídia (GA4)
+                </h2>
+                <div className="flex items-center space-x-2">
+                    <DateRangeFilter />
+                </div>
+            </div>
+
+            <main className="space-y-6 overflow-y-auto w-full">
                 {/* Summary Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
@@ -179,6 +194,6 @@ export default async function OrigemMidiaPage(props: Props) {
                     </div>
                 </div>
             </main>
-        </>
+        </div>
     );
 }

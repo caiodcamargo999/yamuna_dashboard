@@ -348,11 +348,13 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
             date: pedido.data_pedido || "",
             total: total,
             status: pedido.situacao || "",
-            // In basic API, customer data is directly in pedido, not pedido.cliente
-            customerCpfCnpj: pedido.cpf_cnpj || pedido.cnpj || "",
-            customerName: pedido.nome || pedido.nome_cliente || "",
-            customerEmail: pedido.email || "",
-            seller: pedido.nome_vendedor || pedido.vendedor || "", // Map seller name
+            // Correct mapping for Tiny API structure in pedidos.pesquisa
+            // The API returns `pedido.cliente` object containing name and sometimes generic data
+            // It often puts name directly in `pedido.nome` too, but `cliente` object is standard
+            customerCpfCnpj: pedido.cliente?.cpf_cnpj || pedido.cliente?.cnpj || pedido.cpf_cnpj || pedido.cnpj || "",
+            customerName: pedido.cliente?.nome || pedido.nome || pedido.nome_cliente || "",
+            customerEmail: pedido.cliente?.email || pedido.email || "",
+            seller: pedido.nome_vendedor || pedido.vendedor || "",
             raw: pedido
         };
     });

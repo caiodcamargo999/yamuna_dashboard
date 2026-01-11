@@ -1,87 +1,74 @@
 "use client";
 
-import { Package } from "lucide-react";
-import type { ProductSales } from "@/lib/services/tiny-products";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+interface Product {
+    name: string;
+    quantity: number;
+    revenue: number;
+}
 
 interface TopProductsProps {
-    products: ProductSales[];
+    products: Product[];
 }
 
 export function TopProducts({ products }: TopProductsProps) {
     if (!products || products.length === 0) {
         return (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-                <h3 className="text-lg font-bold text-white mb-6">Top 10 Produtos Vendidos</h3>
-                <p className="text-slate-400 text-center py-8">Nenhum dado de produto disponível</p>
-            </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Top 5 Produtos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground text-center py-8">
+                        Nenhum produto encontrado no período
+                    </p>
+                </CardContent>
+            </Card>
         );
     }
 
-    return (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-            <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                <Package className="text-indigo-400" size={24} />
-                Top 10 Produtos Vendidos
-            </h3>
+    const topProducts = products.slice(0, 5);
+    const maxRevenue = Math.max(...topProducts.map(p => p.revenue));
 
-            <div className="overflow-x-auto">
-                <table className="w-full">
-                    <thead>
-                        <tr className="border-b border-slate-800">
-                            <th className="text-left text-slate-400 font-medium text-sm py-3 px-3">#</th>
-                            <th className="text-left text-slate-400 font-medium text-sm py-3 px-3">Produto</th>
-                            <th className="text-right text-slate-400 font-medium text-sm py-3 px-3">Qtd</th>
-                            <th className="text-right text-slate-400 font-medium text-sm py-3 px-3">Receita</th>
-                            <th className="text-right text-slate-400 font-medium text-sm py-3 px-3">% Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {products.map((product, index) => (
-                            <tr
-                                key={product.productId}
-                                className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors"
-                            >
-                                <td className="py-3 px-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${index === 0 ? 'bg-yellow-600 text-white' :
-                                            index === 1 ? 'bg-gray-400 text-white' :
-                                                index === 2 ? 'bg-orange-600 text-white' :
-                                                    'bg-slate-700 text-slate-300'
-                                        }`}>
-                                        {index + 1}
-                                    </div>
-                                </td>
-                                <td className="py-3 px-3">
-                                    <p className="text-white font-medium">{product.productName}</p>
-                                    <p className="text-xs text-slate-500">ID: {product.productId}</p>
-                                </td>
-                                <td className="text-right py-3 px-3">
-                                    <span className="text-white font-medium">
-                                        {product.quantity.toLocaleString('pt-BR')}
-                                    </span>
-                                </td>
-                                <td className="text-right py-3 px-3">
-                                    <span className="text-emerald-400 font-bold">
-                                        R$ {product.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </span>
-                                </td>
-                                <td className="text-right py-3 px-3">
-                                    <div className="flex items-center justify-end gap-2">
-                                        <div className="w-16 bg-slate-700 rounded-full h-2 overflow-hidden">
-                                            <div
-                                                className="bg-indigo-600 h-full rounded-full"
-                                                style={{ width: `${Math.min(product.percentage, 100)}%` }}
-                                            />
-                                        </div>
-                                        <span className="text-slate-300 text-sm font-medium w-12">
-                                            {product.percentage.toFixed(1)}%
-                                        </span>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Top 5 Produtos</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-3">
+                    {topProducts.map((product, index) => (
+                        <div
+                            key={index}
+                            className="flex items-center justify-between pb-3 border-b last:border-0"
+                        >
+                            <div className="flex items-center gap-3 flex-1">
+                                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-sm font-bold">
+                                    {index + 1}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium truncate">{product.name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {product.quantity} vendas
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="font-bold text-sm">
+                                    R$ {product.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                                <div className="w-16 bg-muted rounded-full h-1.5 mt-1 overflow-hidden">
+                                    <div
+                                        className="bg-primary h-full"
+                                        style={{ width: `${(product.revenue / maxRevenue) * 100}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </CardContent>
+        </Card>
     );
 }

@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { CreativeModal } from "@/components/meta/CreativeModal";
 import { Filter, Layers, Zap, DollarSign, MousePointer, ShoppingCart, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
 
 interface Creative {
     id: string;
@@ -136,9 +137,8 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
 
     return (
         <>
-            <div className="relative overflow-hidden rounded-xl border border-white/10 bg-slate-900/40 backdrop-blur-md shadow-2xl">
-                {/* Background Gradients */}
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5 pointer-events-none" />
+            <Card className="overflow-hidden">
+
 
                 {/* Filter / Header Bar */}
                 <div className="relative p-6 border-b border-white/5 bg-slate-900/20">
@@ -384,7 +384,7 @@ export function MetaAdsClient({ creatives, startDate, endDate }: MetaAdsClientPr
                         title: selectedCreative.title
                     } : null}
                 />
-            </div>
+            </Card>
         </>
     );
 }

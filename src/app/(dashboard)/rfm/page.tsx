@@ -1,5 +1,6 @@
-import { Header } from "@/components/layout/Header";
+import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { fetchRFMData } from "@/app/rfm-actions";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 // Force dynamic rendering because this page makes API calls
 export const dynamic = 'force-dynamic';
@@ -17,9 +18,17 @@ export default async function RFMPage() {
     };
 
     return (
-        <>
-            <Header title="RFM - Análise de Clientes" />
-            <main className="p-6 space-y-6 overflow-y-auto w-full max-w-[1600px] mx-auto relative">
+        <div className="flex flex-1 flex-col gap-8 p-4 pt-0">
+            <div className="flex items-center justify-between py-6">
+                <h2 className="scroll-m-20 text-3xl font-semibold tracking-tight first:mt-0">
+                    RFM - Análise de Clientes
+                </h2>
+                <div className="flex items-center space-x-2">
+                    <DateRangeFilter />
+                </div>
+            </div>
+
+            <main className="space-y-6 overflow-y-auto w-full max-w-[1600px] mx-auto relative">
 
                 {/* Background Decor */}
                 <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none" />
@@ -57,45 +66,48 @@ export default async function RFMPage() {
 
                 {/* Summary Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
-                    <div className="bg-[#0B0B1E]/60 backdrop-blur-md border border-white/5 rounded-xl p-5 hover:border-indigo-500/30 transition-all group">
+                    <Card className="p-5">
                         <div className="flex justify-between items-start mb-2">
                             <p className="text-slate-400 text-xs uppercase tracking-wider">Total Clientes</p>
                             <div className="p-1.5 bg-indigo-500/10 rounded text-indigo-400">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
                             </div>
                         </div>
-                        <p className="text-white text-3xl font-bold group-hover:scale-105 transition-transform origin-left">{rfmData.length}</p>
-                    </div>
-                    <div className="bg-emerald-950/20 backdrop-blur-md border border-emerald-500/10 rounded-xl p-5 hover:bg-emerald-950/30 hover:border-emerald-500/30 transition-all group relative overflow-hidden">
+                        <p className="text-white text-3xl font-bold">{rfmData.length}</p>
+                    </Card>
+
+                    <Card className="p-5 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
                         <div className="relative z-10">
-                            <p className="text-emerald-400 text-xs uppercase tracking-wider mb-2 font-bold">Campeões (555)</p>
-                            <p className="text-white text-3xl font-bold group-hover:scale-105 transition-transform origin-left shadow-emerald-500/50 drop-shadow-sm">
+                            <p className="text-xs uppercase tracking-wider mb-2 font-medium text-muted-foreground">Campeões (555)</p>
+                            <p className="text-2xl font-bold text-emerald-400">
                                 {rfmData.filter(c => c.R >= 3 && c.F >= 3 && c.M >= 3).length}
                             </p>
-                            <p className="text-[10px] text-emerald-500/70 mt-1">R≥3, F≥3, M≥3</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">R≥3, F≥3, M≥3</p>
                         </div>
-                    </div>
-                    <div className="bg-amber-950/20 backdrop-blur-md border border-amber-500/10 rounded-xl p-5 hover:bg-amber-950/30 hover:border-amber-500/30 transition-all group relative overflow-hidden">
+                    </Card>
+
+                    <Card className="p-5 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/10 rounded-full blur-xl pointer-events-none" />
                         <div className="relative z-10">
-                            <p className="text-amber-400 text-xs uppercase tracking-wider mb-2 font-bold">Em Risco (R≤2)</p>
-                            <p className="text-white text-3xl font-bold group-hover:scale-105 transition-transform origin-left drop-shadow-sm">
+                            <p className="text-xs uppercase tracking-wider mb-2 font-medium text-muted-foreground">Em Risco (R≤2)</p>
+                            <p className="text-2xl font-bold text-amber-400">
                                 {rfmData.filter(c => c.R <= 2 && c.F >= 2).length}
                             </p>
-                            <p className="text-[10px] text-amber-500/70 mt-1">R≤2, F≥2</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">R≤2, F≥2</p>
                         </div>
-                    </div>
-                    <div className="bg-rose-950/20 backdrop-blur-md border border-rose-500/10 rounded-xl p-5 hover:bg-rose-950/30 hover:border-rose-500/30 transition-all group relative overflow-hidden">
+                    </Card>
+
+                    <Card className="p-5 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-20 h-20 bg-rose-500/10 rounded-full blur-xl pointer-events-none" />
                         <div className="relative z-10">
-                            <p className="text-rose-400 text-xs uppercase tracking-wider mb-2 font-bold">Hibernando</p>
-                            <p className="text-white text-3xl font-bold group-hover:scale-105 transition-transform origin-left drop-shadow-sm">
+                            <p className="text-xs uppercase tracking-wider mb-2 font-medium text-muted-foreground">Hibernando (R=1, F=1)</p>
+                            <p className="text-2xl font-bold text-rose-400">
                                 {rfmData.filter(c => c.R === 1 && c.F === 1).length}
                             </p>
-                            <p className="text-[10px] text-rose-500/70 mt-1">R=1, F=1</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">R=1, F=1</p>
                         </div>
-                    </div>
+                    </Card>
                 </div>
 
                 {/* RFM Table */}
@@ -203,6 +215,6 @@ export default async function RFMPage() {
                     </div>
                 </div>
             </main>
-        </>
+        </div>
     );
 }

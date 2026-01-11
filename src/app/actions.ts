@@ -1,6 +1,6 @@
 "use server";
 
-export const maxDuration = 300; // Allow up to 5 minutes for data fetching
+
 
 import { getGoogleAnalyticsData } from "@/lib/services/google";
 import { getTinyOrders, getTinyOrdersWithCustomers } from "@/lib/services/tiny";

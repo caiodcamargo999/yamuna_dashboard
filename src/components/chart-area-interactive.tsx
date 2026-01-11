@@ -160,6 +160,7 @@ export function ChartAreaInteractive() {
                 type="natural"
                 fill="url(#fillMobile)"
                 stroke="var(--color-mobile)"
+                strokeWidth={2}
                 stackId="a"
               />
               <Area
@@ -167,6 +168,7 @@ export function ChartAreaInteractive() {
                 type="natural"
                 fill="url(#fillDesktop)"
                 stroke="var(--color-desktop)"
+                strokeWidth={2}
                 stackId="a"
               />
               <ChartLegend content={<ChartLegendContent />} />

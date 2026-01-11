@@ -7,6 +7,7 @@
 - `/diagnostics` ✅
 - `/publico-alvo` ✅
 - `/origem-midia` ✅
+- `/settings` (Configurações da Conta) ✅
 
 ##❌ O que PRECISA Corrigir:
 

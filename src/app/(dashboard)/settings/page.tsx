@@ -2,8 +2,12 @@ import { createClient } from '@/lib/supabase/server'
 import { Header } from '@/components/layout/Header'
 import { updateProfile, updatePassword, linkGoogle } from './actions'
 import { redirect } from 'next/navigation'
-import { User, Lock, Mail, Globe, RefreshCw } from 'lucide-react'
+import { User, Lock, Mail, Globe } from 'lucide-react'
 import { CacheSection } from './CacheSection'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 export default async function SettingsPage() {
     const supabase = await createClient()
@@ -28,93 +32,90 @@ export default async function SettingsPage() {
             <main className="p-6 space-y-8 overflow-y-auto w-full max-w-4xl">
 
                 {/* Profile Section */}
-                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                    <div className="p-4 border-b border-slate-800 bg-slate-950/50 flex items-center gap-3">
-                        <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+                <Card>
+                    <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+                        <div className="p-2 bg-primary/10 rounded-lg text-primary">
                             {finalAvatar ? (
                                 <img src={finalAvatar} alt="Avatar" className="w-5 h-5 rounded-full" />
                             ) : (
                                 <User size={20} />
                             )}
                         </div>
-                        <h2 className="text-lg font-semibold text-white">Perfil</h2>
-                    </div>
-                    <div className="p-6 space-y-6">
+                        <CardTitle>Perfil</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
                         <form action={updateProfile} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-400 mb-1">Email</label>
-                                <div className="flex items-center gap-2 px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-400 cursor-not-allowed">
+                            <div className="space-y-2">
+                                <Label htmlFor="email" className="text-muted-foreground">Email</Label>
+                                <div className="flex items-center gap-2 px-3 py-2 bg-muted border rounded-lg text-muted-foreground cursor-not-allowed">
                                     <Mail size={16} />
                                     {user.email}
                                 </div>
                             </div>
-                            <div>
-                                <label htmlFor="full_name" className="block text-sm font-medium text-slate-400 mb-1">Nome Completo</label>
-                                <input
+                            <div className="space-y-2">
+                                <Label htmlFor="full_name">Nome Completo</Label>
+                                <Input
                                     type="text"
                                     name="full_name"
                                     id="full_name"
                                     defaultValue={user.user_metadata.full_name || user.user_metadata.name || ''}
-                                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600"
                                     placeholder="Seu nome"
                                 />
                             </div>
                             <div className="pt-2">
-                                <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
+                                <Button type="submit">
                                     Salvar Alterações
-                                </button>
+                                </Button>
                             </div>
                         </form>
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
 
                 {/* Security Section */}
-                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                    <div className="p-4 border-b border-slate-800 bg-slate-950/50 flex items-center gap-3">
+                <Card>
+                    <CardHeader className="flex flex-row items-center gap-3 space-y-0">
                         <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
                             <Lock size={20} />
                         </div>
-                        <h2 className="text-lg font-semibold text-white">Segurança</h2>
-                    </div>
-                    <div className="p-6 space-y-6">
+                        <CardTitle>Segurança</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
                         <form action={updatePassword} className="space-y-4 max-w-md">
-                            <div>
-                                <label htmlFor="password" className="block text-sm font-medium text-slate-400 mb-1">Nova Senha</label>
-                                <input
+                            <div className="space-y-2">
+                                <Label htmlFor="password">Nova Senha</Label>
+                                <Input
                                     type="password"
                                     name="password"
                                     id="password"
-                                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
                                 />
                             </div>
-                            <div>
-                                <label htmlFor="confirm_password" className="block text-sm font-medium text-slate-400 mb-1">Confirmar Senha</label>
-                                <input
+                            <div className="space-y-2">
+                                <Label htmlFor="confirm_password">Confirmar Senha</Label>
+                                <Input
                                     type="password"
                                     name="confirm_password"
                                     id="confirm_password"
-                                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
                                 />
                             </div>
                             <div className="pt-2">
-                                <button type="submit" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
+                                <Button type="submit" variant="default" className="bg-emerald-600 hover:bg-emerald-500">
                                     Atualizar Senha
-                                </button>
+                                </Button>
                             </div>
                         </form>
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
 
                 {/* Connections Section */}
-                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                    <div className="p-4 border-b border-slate-800 bg-slate-950/50 flex items-center gap-3">
+                <Card>
+                    <CardHeader className="flex flex-row items-center gap-3 space-y-0">
                         <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
                             <Globe size={20} />
                         </div>
-                        <h2 className="text-lg font-semibold text-white">Contas Conectadas</h2>
-                    </div>
-                    <div className="p-6">
-                        <div className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-xl">
+                        <CardTitle>Contas Conectadas</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center justify-between p-4 bg-muted/50 border rounded-xl">
                             <div className="flex items-center gap-4">
                                 <div className="p-2 bg-white rounded-full">
                                     <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -137,8 +138,8 @@ export default async function SettingsPage() {
                                     </svg>
                                 </div>
                                 <div>
-                                    <h3 className="font-medium text-white">Google</h3>
-                                    <p className="text-sm text-slate-500">Usar sua conta Google para entrar</p>
+                                    <h3 className="font-medium">Google</h3>
+                                    <p className="text-sm text-muted-foreground">Usar sua conta Google para entrar</p>
                                 </div>
                             </div>
 
@@ -148,14 +149,14 @@ export default async function SettingsPage() {
                                 </span>
                             ) : (
                                 <form action={linkGoogle}>
-                                    <button type="submit" className="text-sm font-medium text-indigo-400 hover:text-indigo-300 hover:underline">
+                                    <Button type="submit" variant="link" className="text-primary hover:underline">
                                         Conectar
-                                    </button>
+                                    </Button>
                                 </form>
                             )}
                         </div>
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
 
                 {/* Cache & Data Section */}
                 <CacheSection />

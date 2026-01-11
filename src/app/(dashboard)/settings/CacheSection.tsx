@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { RefreshCw, Trash2, Database, CheckCircle } from "lucide-react";
 import { clearAllCaches, clearDashboardCache, getCacheStatus } from "@/app/cache-actions";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 export function CacheSection() {
     const [loading, setLoading] = useState(false);
@@ -50,27 +52,29 @@ export function CacheSection() {
     }
 
     return (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-            <div className="p-4 border-b border-slate-800 bg-slate-950/50 flex items-center gap-3">
+        <Card>
+            <CardHeader className="flex flex-row items-center gap-3 space-y-0">
                 <div className="p-2 bg-orange-500/10 rounded-lg text-orange-400">
                     <Database size={20} />
                 </div>
-                <h2 className="text-lg font-semibold text-white">Cache & Dados</h2>
-            </div>
-            <div className="p-6 space-y-6">
-                <p className="text-sm text-slate-400">
+                <CardTitle>Cache & Dados</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <p className="text-sm text-muted-foreground">
                     Se os dados do dashboard parecerem incorretos ou desatualizados,
                     limpe o cache para forçar uma nova busca das APIs.
                 </p>
 
                 {/* Message */}
                 {message && (
-                    <div className={`p-4 rounded-lg text-sm flex items-center gap-2 ${status === "success"
-                            ? "bg-emerald-500/10 border border-emerald-500/50 text-emerald-400"
-                            : status === "error"
-                                ? "bg-red-500/10 border border-red-500/50 text-red-400"
-                                : "bg-slate-800 text-slate-300"
-                        }`}>
+                    <div
+                        className={`p-4 rounded-lg text-sm flex items-center gap-2 ${status === "success"
+                                ? "bg-emerald-500/10 border border-emerald-500/50 text-emerald-400"
+                                : status === "error"
+                                    ? "bg-red-500/10 border border-red-500/50 text-red-400"
+                                    : "bg-muted text-muted-foreground"
+                            }`}
+                    >
                         {status === "success" && <CheckCircle size={18} />}
                         {message}
                         {status === "success" && (
@@ -81,38 +85,34 @@ export function CacheSection() {
 
                 {/* Buttons */}
                 <div className="flex flex-wrap gap-3">
-                    <button
+                    <Button
                         onClick={handleClearDashboard}
                         disabled={loading}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${loading
-                                ? "bg-slate-700 text-slate-400 cursor-not-allowed"
-                                : "bg-indigo-600 hover:bg-indigo-500 text-white"
-                            }`}
+                        variant="default"
+                        className="gap-2"
                     >
                         <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
                         {loading ? "Limpando..." : "Limpar Cache Dashboard"}
-                    </button>
+                    </Button>
 
-                    <button
+                    <Button
                         onClick={handleClearAll}
                         disabled={loading}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${loading
-                                ? "bg-slate-700 text-slate-400 cursor-not-allowed"
-                                : "bg-red-600 hover:bg-red-500 text-white"
-                            }`}
+                        variant="destructive"
+                        className="gap-2"
                     >
                         <Trash2 size={16} />
                         {loading ? "Limpando..." : "Limpar TODO Cache"}
-                    </button>
+                    </Button>
                 </div>
 
                 {/* Info */}
-                <div className="text-xs text-slate-500 space-y-1">
+                <div className="text-xs text-muted-foreground space-y-1">
                     <p>• <strong>Cache Dashboard:</strong> Limpa dados de métricas e KPIs</p>
                     <p>• <strong>Todo Cache:</strong> Limpa todos os dados em cache (RFM, Funil, APIs)</p>
                     <p>• Os dados serão buscados novamente das APIs após limpar</p>
                 </div>
-            </div>
-        </div>
+            </CardContent>
+        </Card>
     );
 }

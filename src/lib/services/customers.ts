@@ -5,13 +5,29 @@
 
 import { differenceInDays, parseISO } from "date-fns";
 
-// Helper for name normalization
+// Helper for AGGRESSIVE name normalization
+// Extracts only FIRST + LAST name to maximize matching
 export function normalizeName(name: string): string {
     if (!name) return "";
-    return name.toLowerCase().trim()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
-        .replace(/[^\w\s]/g, '') // Remove punctuation
-        .replace(/\s+/g, ' '); // Normalize multiple spaces
+
+    // Remove accents, lowercase, trim
+    let normalized = name.toLowerCase().trim()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    // Remove common titles and suffixes
+    normalized = normalized
+        .replace(/\b(sr|sra|dr|dra|prof|eng|arq|jr|junior|filho|neto|sobrinho)\b\.?/gi, '')
+        .replace(/[^a-z\s]/g, '') // Remove all non-letters
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Extract ONLY first and last name (ignore middle names)
+    const parts = normalized.split(' ').filter(p => p.length > 2); // Ignore initials
+    if (parts.length === 0) return "";
+    if (parts.length === 1) return parts[0];
+
+    // Return "firstname lastname" - maximum compatibility
+    return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
 export interface CustomerOrder {
@@ -250,6 +266,10 @@ export function calculateRevenueSegmentation(
     });
 
     console.log(`[Segmentation Debug] Historical Indexes Built: CPFs=${existingCpfs.size}, Emails=${existingEmails.size}, Names=${existingNames.size}`);
+
+    // Debug: Show sample normalized names
+    const sampleNames = Array.from(existingNames).slice(0, 5);
+    console.log(`[Segmentation Debug] Sample normalized names: ${sampleNames.join(', ')}`);
 
     let newRevenue = 0;
     let retentionRevenue = 0;

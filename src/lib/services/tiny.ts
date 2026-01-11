@@ -236,7 +236,7 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
     // Instead we use it per-request inside `fetchPage`
 
     const MAX_CONCURRENCY = 1; // Serial for max reliability
-    const BATCH_DELAY = 700; // 0.7s delay (Approx 85 req/min - slightly over 60/min limit, but retries handle it)
+    const BATCH_DELAY = 1200; // 1.2s delay (50 req/min - SAFE under 60/min limit to prevent rate limit data loss)
 
     // Inner function to fetch a single page
     const fetchPage = async (p: number): Promise<{ orders: TinyOrderBasic[], hasMore: boolean, fullPage: boolean }> => {
@@ -259,8 +259,8 @@ export async function getTinyOrders(startDate?: string, endDate?: string) {
                     const data = await res.json();
 
                     if (data.retorno?.codigo_erro === 6) { // Rate limit
-                        console.warn(`[Tiny API] 🚫 Rate Limit (Page ${p}). Waiting 2s...`);
-                        await new Promise(r => setTimeout(r, 2000));
+                        console.warn(`[Tiny API] 🚫 Rate Limit (Page ${p}). Waiting 5s before retry...`);
+                        await new Promise(r => setTimeout(r, 5000)); // Increased to 5s
                         retries++;
                         continue;
                     }

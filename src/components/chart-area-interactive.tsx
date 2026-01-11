@@ -29,13 +29,16 @@ import {
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
 const chartConfig = {
+  visitors: {
+    label: "Visitantes",
+  },
   desktop: {
     label: "Desktop",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
   mobile: {
     label: "Mobile",
-    color: "hsl(var(--chart-2))",
+    color: "var(--chart-2)",
   },
 } satisfies ChartConfig
 
@@ -54,10 +57,8 @@ export function ChartAreaInteractive() {
     loadData()
   }, [timeRange])
 
-  const filteredData = chartData
-
   return (
-    <Card>
+    <Card className="pt-0">
       <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
         <div className="grid flex-1 gap-1 text-center sm:text-left">
           <CardTitle>Sessões Loja Virtual</CardTitle>
@@ -90,7 +91,7 @@ export function ChartAreaInteractive() {
           <div className="flex items-center justify-center h-[250px]">
             <LoadingSpinner />
           </div>
-        ) : filteredData.length === 0 ? (
+        ) : chartData.length === 0 ? (
           <div className="flex items-center justify-center h-[250px] text-muted-foreground">
             Nenhum dado disponível para o período selecionado
           </div>
@@ -99,7 +100,7 @@ export function ChartAreaInteractive() {
             config={chartConfig}
             className="aspect-auto h-[250px] w-full"
           >
-            <AreaChart data={filteredData}>
+            <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="fillDesktop" x1="0" y1="0" x2="0" y2="1">
                   <stop

@@ -248,6 +248,19 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
 
         console.log(`[Retention] 📦 Historical: ${histTiny.length} Tiny + ${histWake?.length || 0} Wake`);
 
+        // DIAGNOSTIC: Check if historical fetch seems suspiciously low
+        const historicalDays = 180;
+        const expectedMinOrders = historicalDays * 0.5; // At least 0.5 orders/day expected
+        if (histTiny.length < expectedMinOrders) {
+            console.warn(`[Retention] ⚠️  WARNING: Historical data seems LOW!`);
+            console.warn(`[Retention]     Period: ${historicalDays} days (${histStartStr} to ${histEndStr})`);
+            console.warn(`[Retention]     Orders found: ${histTiny.length}`);
+            console.warn(`[Retention]     Expected minimum: ~${Math.round(expectedMinOrders)}`);
+            console.warn(`[Retention]     This may cause INCORRECT "Receita Nova" calculation!`);
+            console.warn(`[Retention]     Possible cause: Rate limit prevented full data fetch`);
+        }
+
+
         const historicalData = mergeOrders(histTiny, histWake || []);
 
         // Segmentation Logic
@@ -277,7 +290,7 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
             newCustomersCount: segmentation.newCustomersCount,
             returningCustomersCount: segmentation.returningCustomersCount
         };
-    }, CACHE_TTL.LONG); // 15 min cache
+    }, CACHE_TTL.FOUR_HOURS); // 4 hour cache - historical data doesn't change frequently
 }
 
 /**

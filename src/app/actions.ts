@@ -269,26 +269,59 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
 
         // Debug Log
         const totalRevenue = allOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+
+        // --- SAFEGUARD: FALLBACK FOR DATA INSUFFICIENCY ---
+        // If historical data is missing (rate limits/errors), New Revenue defaults to > 50% incorrectly.
+        // User Rule: If data is suspect, cap New Revenue at ~40% max.
+
+        let finalNewRevenue = segmentation.newRevenue;
+        let finalRetentionRevenue = segmentation.retentionRevenue;
+        let finalNewCustomersCount = segmentation.newCustomersCount;
+        let finalReturningCustomersCount = segmentation.returningCustomersCount;
+
+        const isHistoricalDataSuspect = histTiny.length < expectedMinOrders; // < 0.5 orders/day
+        const newRevenueRatio = totalRevenue > 0 ? (finalNewRevenue / totalRevenue) : 0;
+
+        // Trigger if data is suspect AND new revenue is surprisingly high (> 42%)
+        if (isHistoricalDataSuspect && newRevenueRatio > 0.42) {
+            console.warn(`[Retention] 🛡️ SAFEGUARD TRIGGERED: Low history (${histTiny.length} orders) + High New Revenue (${(newRevenueRatio * 100).toFixed(1)}%)`);
+            console.warn(`[Retention] 🔧 Applying 40% Cap on New Revenue as requested.`);
+
+            // Force 40% Split
+            finalNewRevenue = totalRevenue * 0.40;
+            finalRetentionRevenue = totalRevenue - finalNewRevenue; // Ensures sum equals total
+
+            // Adjust Customer Counts Proportionally
+            // We assume the error causing high revenue also caused high new customer count
+            const adjustmentRatio = finalNewRevenue / segmentation.newRevenue;
+            finalNewCustomersCount = Math.round(segmentation.newCustomersCount * adjustmentRatio);
+            finalReturningCustomersCount = allOrders.length - finalNewCustomersCount;
+
+            console.log(`[Retention] 🔧 Adjusted: New=R$${finalNewRevenue.toFixed(2)}, Ret=R$${finalRetentionRevenue.toFixed(2)}`);
+        } else {
+            console.log(`[Retention] ✅ Data valid (New Rev: ${(newRevenueRatio * 100).toFixed(1)}%, History: ${histTiny.length} orders)`);
+        }
+
         console.log(`[Retention] 💰 Total Revenue: R$ ${totalRevenue.toFixed(2)}`);
-        console.log(`[Retention] 📈 New: R$ ${segmentation.newRevenue.toFixed(2)}`);
-        console.log(`[Retention] 🔄 Retention: R$ ${segmentation.retentionRevenue.toFixed(2)}`);
+        console.log(`[Retention] 📈 New (Final): R$ ${finalNewRevenue.toFixed(2)}`);
+        console.log(`[Retention] 🔄 Retention (Final): R$ ${finalRetentionRevenue.toFixed(2)}`);
 
         // Calculate Derived Metrics
-        const ticketAvgNew = segmentation.newCustomersCount > 0
-            ? segmentation.newRevenue / segmentation.newCustomersCount
+        const ticketAvgNew = finalNewCustomersCount > 0
+            ? finalNewRevenue / finalNewCustomersCount
             : 0;
 
-        const acquiredCustomers = segmentation.newCustomersCount;
+        const acquiredCustomers = finalNewCustomersCount;
         const cac = acquiredCustomers > 0 ? totalInvestment / acquiredCustomers : 0;
 
         return {
             ticketAvgNew,
             acquiredCustomers,
             cac,
-            retentionRevenue: segmentation.retentionRevenue,
-            newRevenue: segmentation.newRevenue,
-            newCustomersCount: segmentation.newCustomersCount,
-            returningCustomersCount: segmentation.returningCustomersCount
+            retentionRevenue: finalRetentionRevenue,
+            newRevenue: finalNewRevenue,
+            newCustomersCount: finalNewCustomersCount,
+            returningCustomersCount: finalReturningCustomersCount
         };
     }, CACHE_TTL.FOUR_HOURS); // 4 hour cache - historical data doesn't change frequently
 }

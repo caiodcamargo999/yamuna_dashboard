@@ -12,9 +12,9 @@ interface FunnelChartProps {
 export function FunnelOverview({ data, className }: FunnelChartProps) {
     if (!data || data.length === 0) return null;
 
-    const maxUsers = data[0].users;
+    const maxUsers = data[0]?.users || 0;
 
-    const getIcon = (label: string) => {
+    const getIcon = (label: string = "") => {
         const l = label.toLowerCase();
         if (l.includes('sessões')) return <Users className="size-5" />;
         if (l.includes('carrinho')) return <ShoppingCart className="size-5" />;
@@ -41,11 +41,11 @@ export function FunnelOverview({ data, className }: FunnelChartProps) {
         <div className={`flex flex-col items-center w-full space-y-1 py-4 ${className}`}>
             {data.map((stage, index) => {
                 const percentage = maxUsers > 0 ? (stage.users / maxUsers) * 100 : 0;
-                // Min width 280px for readabilty, max 100%
-                const widthStyle = Math.max(percentage, 30);
+                // Min width 50% for readability to avoid squashed text
+                const widthStyle = Math.max(percentage, 50);
 
                 return (
-                    <div key={stage.subLabel + index} className="w-full flex flex-col items-center relative z-10">
+                    <div key={(stage.subLabel || "stage") + index} className="w-full flex flex-col items-center relative z-10">
                         {/* Connector Arrow */}
                         {index > 0 && (
                             <motion.div
@@ -70,12 +70,12 @@ export function FunnelOverview({ data, className }: FunnelChartProps) {
                                 stiffness: 60
                             }}
                             className={`
-                                relative min-w-[280px] md:max-w-3xl rounded-xl 
+                                relative w-full min-w-[300px] max-w-full md:max-w-[95%] rounded-xl 
                                 bg-gradient-to-r ${getGradient(index)}
                                 border border-white/10
                                 shadow-xl backdrop-blur-sm
                                 group hover:brightness-110 transition-all duration-300
-                                flex items-center justify-between px-6 py-4
+                                flex items-center justify-between px-4 py-3 md:px-6 md:py-4
                             `}
                         >
                             {/* Left: Icon & Label */}

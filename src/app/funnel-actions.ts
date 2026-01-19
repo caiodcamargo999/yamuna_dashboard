@@ -189,6 +189,7 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
             revenue: currentMonthRevenue,
             transactions: currentMonthTransactions,
             investment: currentMonthInvestment,
+            avgTicket: currentMonthTransactions > 0 ? currentMonthRevenue / currentMonthTransactions : 0,
             projectedRevenue,
             projectedTransactions,
             goal: currentGoal,
@@ -203,6 +204,7 @@ export async function fetchFunnelData(startDate = "30daysAgo", endDate = "today"
             revenue: prevMonthRevenue,
             transactions: prevMonthTransactions,
             investment: prevMonthInvestment,
+            avgTicket: prevMonthTransactions > 0 ? prevMonthRevenue / prevMonthTransactions : 0,
             goal: prevGoal,
             revenueGoalPercent: prevRevenueGoalPercent
         },

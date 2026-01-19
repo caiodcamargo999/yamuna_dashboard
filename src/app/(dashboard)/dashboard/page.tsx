@@ -1,11 +1,14 @@
+
 import { fetchDashboardData } from "@/app/actions";
 import { Suspense } from "react";
 import { DashboardKPIs, DashboardFunnel } from "@/components/dashboard/DashboardMainMetrics";
 import { SixMonthMetricsSection } from "@/components/dashboard/SixMonthMetrics";
+
 import { LastMonthSection } from "@/components/dashboard/LastMonthData";
 import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { ChartAreaInteractive } from "@/components/chart-area-interactive"; // Import the new chart
+import { SalesEvolutionChart } from "@/components/dashboard/sales-evolution-chart";
+import { SalesForecastSection } from "@/components/dashboard/sales-forecast-section";
 
 export const revalidate = 300;
 export const maxDuration = 300;
@@ -75,7 +78,7 @@ export default async function DashboardPage(props: Props) {
                 </div>
             </div>
 
-            <div className="flex flex-1 flex-col gap-8">
+            <div className="flex flex-1 flex-col gap-6">
                 {/* Main KPIs (Suspended) */}
                 <Suspense fallback={<KPISectionSkeleton />}>
                     <DashboardKPIs
@@ -85,22 +88,26 @@ export default async function DashboardPage(props: Props) {
                     />
                 </Suspense>
 
-                {/* New Interactive Chart Section */}
-                <section>
-                    <ChartAreaInteractive />
-                </section>
+                {/* Section 2: Sales Evolution (New) */}
+                <div className="w-full">
+                    <SalesEvolutionChart />
+                </div>
 
-                {/* Section 4: Growth */}
+                {/* Section 3: Growth Metrics (Existing) */}
                 <SixMonthMetricsSection />
 
-                {/* Bottom Charts */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                    <div className="col-span-4">
+                {/* Bottom Charts: Funnel, Forecast, Last Month */}
+                <div className="grid gap-6 grid-cols-1 xl:grid-cols-2">
+                    {/* Funnel - Left side */}
+                    <div className="w-full">
                         <Suspense fallback={<FunnelSkeleton />}>
                             <DashboardFunnel dataPromise={dataPromise} />
                         </Suspense>
                     </div>
-                    <div className="col-span-3">
+
+                    {/* Right side: Forecast + Last Month stacked */}
+                    <div className="w-full flex flex-col gap-6">
+                        <SalesForecastSection />
                         <LastMonthSection />
                     </div>
                 </div>

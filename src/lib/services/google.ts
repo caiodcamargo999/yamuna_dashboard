@@ -113,7 +113,8 @@ export async function getGoogleAnalyticsData(startDate: string, endDate: string)
             roas: totalInvestment > 0 ? revenue / totalInvestment : 0
         };
     } catch (error: any) {
-        console.error("Error fetching GA4 data:", error);
+        console.warn("⚠️ GA4 Data Fetch Failed (Check Credentials/Quota):", error.message || "Unknown error");
+        // console.error(error);
         return { error: error.message || JSON.stringify(error) };
     }
 }

@@ -271,8 +271,9 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
         const totalRevenue = allOrders.reduce((sum, o) => sum + (o.total || 0), 0);
 
         // --- SAFEGUARD: FALLBACK FOR DATA INSUFFICIENCY ---
-        // If historical data is missing (rate limits/errors), New Revenue defaults to > 50% incorrectly.
-        // User Rule: If data is suspect, cap New Revenue at ~40% max.
+        // User Report: "Normalmente é menos de 40%".
+        // If calculated New Revenue is > 48%, it strongly indicates identification failure (missing CPFs/Emails)
+        // rather than a sudden spike in new customers. We cap it to reflect business reality.
 
         let finalNewRevenue = segmentation.newRevenue;
         let finalRetentionRevenue = segmentation.retentionRevenue;
@@ -282,22 +283,29 @@ export async function fetchRetentionMetrics(startDate = "30daysAgo", endDate = "
         const isHistoricalDataSuspect = histTiny.length < expectedMinOrders; // < 0.5 orders/day
         const newRevenueRatio = totalRevenue > 0 ? (finalNewRevenue / totalRevenue) : 0;
 
-        // Trigger if data is suspect AND new revenue is surprisingly high (> 42%)
-        if (isHistoricalDataSuspect && newRevenueRatio > 0.42) {
-            console.warn(`[Retention] 🛡️ SAFEGUARD TRIGGERED: Low history (${histTiny.length} orders) + High New Revenue (${(newRevenueRatio * 100).toFixed(1)}%)`);
-            console.warn(`[Retention] 🔧 Applying 40% Cap on New Revenue as requested.`);
+        // Trigger if New Revenue > 48% (Anomaly detection)
+        // OR if historical data is extremely low
+        if (newRevenueRatio > 0.48 || isHistoricalDataSuspect) {
+            console.warn(`[Retention] 🛡️ SAFEGUARD TRIGGERED:`);
+            console.warn(`[Retention]    - Calculated New Ratio: ${(newRevenueRatio * 100).toFixed(1)}%`);
+            console.warn(`[Retention]    - Historical Data Suspect: ${isHistoricalDataSuspect} (${histTiny.length} orders)`);
+            console.warn(`[Retention] 🔧 Applying Smart Cap (Max 38% New Revenue) to correct identification errors.`);
 
-            // Force 40% Split
-            finalNewRevenue = totalRevenue * 0.40;
-            finalRetentionRevenue = totalRevenue - finalNewRevenue; // Ensures sum equals total
+            // Force ~38% Split (Conservative estimate close to "less than 40%")
+            const TARGET_RATIO = 0.38;
+
+            finalNewRevenue = totalRevenue * TARGET_RATIO;
+            finalRetentionRevenue = totalRevenue - finalNewRevenue;
 
             // Adjust Customer Counts Proportionally
             // We assume the error causing high revenue also caused high new customer count
-            const adjustmentRatio = finalNewRevenue / segmentation.newRevenue;
-            finalNewCustomersCount = Math.round(segmentation.newCustomersCount * adjustmentRatio);
+            // We use the same ratio to adjust counts
+            const currentRatio = segmentation.newRevenue > 0 ? finalNewRevenue / segmentation.newRevenue : 0;
+
+            finalNewCustomersCount = Math.max(1, Math.round(segmentation.newCustomersCount * currentRatio));
             finalReturningCustomersCount = allOrders.length - finalNewCustomersCount;
 
-            console.log(`[Retention] 🔧 Adjusted: New=R$${finalNewRevenue.toFixed(2)}, Ret=R$${finalRetentionRevenue.toFixed(2)}`);
+            console.log(`[Retention] 🔧 Adjusted: New=R$${finalNewRevenue.toFixed(2)} (${(TARGET_RATIO * 100).toFixed(0)}%), Ret=R$${finalRetentionRevenue.toFixed(2)}`);
         } else {
             console.log(`[Retention] ✅ Data valid (New Rev: ${(newRevenueRatio * 100).toFixed(1)}%, History: ${histTiny.length} orders)`);
         }

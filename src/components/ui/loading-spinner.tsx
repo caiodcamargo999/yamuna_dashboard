@@ -1,8 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
-export function LoadingSpinner({ size = "default" }: { size?: "sm" | "default" | "lg" }) {
+export function LoadingSpinner({ size = "default", className }: { size?: "sm" | "default" | "lg", className?: string }) {
     const sizeClasses = {
         sm: "h-8 w-8",
         default: "h-12 w-12",
@@ -10,7 +11,7 @@ export function LoadingSpinner({ size = "default" }: { size?: "sm" | "default" |
     };
 
     return (
-        <div className="flex items-center justify-center">
+        <div className={cn("flex items-center justify-center", className)}>
             <motion.div
                 className={`${sizeClasses[size]} relative`}
                 animate={{ rotate: 360 }}

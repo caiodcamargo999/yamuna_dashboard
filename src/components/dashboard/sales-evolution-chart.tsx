@@ -6,7 +6,7 @@ import { fetchSalesEvolution, fetchSimpleProductList } from "@/app/products-acti
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
 
 const chartConfig = {
     sales: {
@@ -64,11 +64,23 @@ export function SalesEvolutionChart() {
 
         async function loadEvolution() {
             setLoading(true);
+
+            // Add timeout to prevent infinite loading
+            const timeoutId = setTimeout(() => {
+                console.error('[SalesEvolutionChart] Request timeout after 30s');
+                setLoading(false);
+                setChartData([]);
+            }, 30000); // 30 second timeout
+
             try {
+                console.log(`[SalesEvolutionChart] Fetching: product=${product}, channel=${channel}, granularity=${granularity}`);
                 const data = await fetchSalesEvolution("6months", channel, product, granularity);
-                setChartData(data);
+                clearTimeout(timeoutId);
+                console.log(`[SalesEvolutionChart] Received ${data?.length || 0} data points`);
+                setChartData(data || []);
             } catch (err) {
-                console.error(err);
+                clearTimeout(timeoutId);
+                console.error('[SalesEvolutionChart] Error:', err);
                 setChartData([]);
             } finally {
                 setLoading(false);
@@ -160,20 +172,30 @@ export function SalesEvolutionChart() {
                                 right: 12,
                             }}
                         >
-                            <CartesianGrid vertical={false} />
+                            <defs>
+                                <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="var(--color-sales)" stopOpacity={0.8} />
+                                    <stop offset="95%" stopColor="var(--color-sales)" stopOpacity={0.1} />
+                                </linearGradient>
+                                <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="var(--color-revenue)" stopOpacity={0.8} />
+                                    <stop offset="95%" stopColor="var(--color-revenue)" stopOpacity={0.1} />
+                                </linearGradient>
+                            </defs>
+
+                            <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
                             <XAxis
                                 dataKey="period"
                                 tickLine={false}
                                 axisLine={false}
                                 tickMargin={8}
                             />
-                            {/* Dual Axis for Scale */}
                             <YAxis
                                 yAxisId="left"
                                 orientation="left"
                                 tickLine={false}
                                 axisLine={false}
-                                hide // Hide axis lines for cleaner look like reference
+                                hide
                             />
                             <YAxis
                                 yAxisId="right"
@@ -182,53 +204,27 @@ export function SalesEvolutionChart() {
                                 axisLine={false}
                                 hide
                             />
+                            <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
 
-                            <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                            <defs>
-                                <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
-                                    <stop
-                                        offset="5%"
-                                        stopColor="var(--color-sales)"
-                                        stopOpacity={0.8}
-                                    />
-                                    <stop
-                                        offset="95%"
-                                        stopColor="var(--color-sales)"
-                                        stopOpacity={0.1}
-                                    />
-                                </linearGradient>
-                                <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
-                                    <stop
-                                        offset="5%"
-                                        stopColor="var(--color-revenue)"
-                                        stopOpacity={0.8}
-                                    />
-                                    <stop
-                                        offset="95%"
-                                        stopColor="var(--color-revenue)"
-                                        stopOpacity={0.1}
-                                    />
-                                </linearGradient>
-                            </defs>
-                            <Area
-                                yAxisId="right"
-                                dataKey="revenue"
-                                type="natural"
-                                fill="url(#fillRevenue)"
-                                fillOpacity={0.4}
-                                stroke="var(--color-revenue)"
-                                stackId="a" // Stacked or not? Revenue vs Sales usually bad to stack. Keeping separate. 
-                            // Actually, user requested "Gradient" style which usually implies stacking if same unit.
-                            // Different units -> DO NOT STACK. Remove stackId.
-                            />
                             <Area
                                 yAxisId="left"
                                 dataKey="sales"
                                 type="natural"
                                 fill="url(#fillSales)"
-                                fillOpacity={0.4}
                                 stroke="var(--color-sales)"
+                                strokeWidth={2}
+                                stackId="a"
                             />
+                            <Area
+                                yAxisId="right"
+                                dataKey="revenue"
+                                type="natural"
+                                fill="url(#fillRevenue)"
+                                stroke="var(--color-revenue)"
+                                strokeWidth={2}
+                                stackId="b"
+                            />
+                            <ChartLegend content={<ChartLegendContent />} />
                         </AreaChart>
                     </ChartContainer>
                 )}

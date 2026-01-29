@@ -9,11 +9,14 @@ import {
     AreaChart,
     CartesianGrid,
     XAxis,
-    YAxis,
-    Tooltip,
-    ResponsiveContainer,
-    ReferenceLine
 } from "recharts";
+import {
+    ChartContainer,
+    ChartTooltip,
+    ChartTooltipContent,
+    ChartLegend,
+    ChartLegendContent
+} from "@/components/ui/chart";
 
 interface ProductAnalysisSheetProps {
     open: boolean;
@@ -27,31 +30,64 @@ interface ProductAnalysisSheetProps {
 export function ProductAnalysisSheet({ open, onOpenChange, product }: ProductAnalysisSheetProps) {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const [channel, setChannel] = useState<'all' | 'b2b' | 'b2c'>('all');
+    const [granularity, setGranularity] = useState<'month' | 'week'>('month');
+
+    // Reset filters when product changes
+    useEffect(() => {
+        if (open) {
+            setChannel('all');
+            setGranularity('month');
+        }
+    }, [open, product]);
 
     useEffect(() => {
         if (open && product) {
             setLoading(true);
-            fetchProductAnalysis(product.code, product.name)
+            fetchProductAnalysis(product.code, product.name, channel, granularity)
                 .then(setData)
                 .catch(err => console.error("Failed to load analysis", err))
                 .finally(() => setLoading(false));
         } else {
             setData(null);
         }
-    }, [open, product]);
+    }, [open, product, channel, granularity]);
 
     if (!product) return null;
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent className="sm:max-w-2xl overflow-y-auto bg-[#050510] border-l-white/10 text-slate-200">
-                <SheetHeader className="mb-6">
-                    <SheetTitle className="text-2xl font-bold text-white flex gap-2 items-center">
-                        {product.name}
-                    </SheetTitle>
-                    <SheetDescription className="text-slate-400">
-                        Código: <span className="font-mono text-xs bg-slate-800 px-1 py-0.5 rounded">{product.code}</span>
-                    </SheetDescription>
+                <SheetHeader className="mb-6 space-y-4">
+                    <div>
+                        <SheetTitle className="text-2xl font-bold text-white flex gap-2 items-center">
+                            {product.name}
+                        </SheetTitle>
+                        <SheetDescription className="text-slate-400">
+                            Código: <span className="font-mono text-xs bg-slate-800 px-1 py-0.5 rounded">{product.code}</span>
+                        </SheetDescription>
+                    </div>
+
+                    <div className="flex bg-slate-900/50 p-1 rounded-lg border border-white/5 w-fit">
+                        <button
+                            onClick={() => setChannel('all')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${channel === 'all' ? 'bg-indigo-500/20 text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            Todos
+                        </button>
+                        <button
+                            onClick={() => setChannel('b2b')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${channel === 'b2b' ? 'bg-blue-500/20 text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            B2B
+                        </button>
+                        <button
+                            onClick={() => setChannel('b2c')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${channel === 'b2c' ? 'bg-emerald-500/20 text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            B2C
+                        </button>
+                    </div>
                 </SheetHeader>
 
                 {loading ? (
@@ -65,65 +101,88 @@ export function ProductAnalysisSheet({ open, onOpenChange, product }: ProductAna
                             <div className="flex items-center justify-between">
                                 <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                                     <TrendingUp size={18} className="text-emerald-400" />
-                                    Sazonalidade e Previsão (12 Meses)
+                                    Vendas ({granularity === 'month' ? 'Mensal' : 'Semanal'})
                                 </h3>
-                                <div className="flex items-center gap-4 text-xs">
-                                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500/50 border border-blue-500"></div> Realizado</div>
-                                    <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500/50 border border-emerald-500 border-dashed"></div> Previsão</div>
+                                <div className="flex items-center gap-2 bg-slate-900/50 rounded-lg p-1 border border-white/5">
+                                    <button
+                                        onClick={() => setGranularity('month')}
+                                        className={`px-2 py-1 text-[10px] rounded transition-all ${granularity === 'month' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                                    >
+                                        Mês
+                                    </button>
+                                    <button
+                                        onClick={() => setGranularity('week')}
+                                        className={`px-2 py-1 text-[10px] rounded transition-all ${granularity === 'week' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                                    >
+                                        Semana
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="h-[300px] w-full bg-slate-900/30 rounded-xl p-4 border border-white/5">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={data.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <div className="flex items-center gap-4 text-xs justify-end pb-2">
+                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500/50 border border-blue-500"></div> Realizado</div>
+                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500/50 border border-emerald-500 border-dashed"></div> Previsão</div>
+                            </div>
+
+                            <div className="w-full bg-slate-900/30 rounded-xl p-4 border border-white/5">
+                                <ChartContainer config={{
+                                    real: { label: "Realizado", color: "hsl(var(--chart-1))" },
+                                    forecast: { label: "Previsão", color: "hsl(var(--chart-2))" },
+                                }} className="aspect-auto h-[300px] w-full">
+                                    <AreaChart data={data.chartData.map((d: any) => ({
+                                        ...d,
+                                        real: d.isForecast ? null : d.sales,
+                                        forecast: d.isForecast ? d.sales : null,
+                                        // Fix gap: If this is the last real point, it should also be start of forecast? 
+                                        // Simpler: Just render proper keys. Gap handling is visual.
+                                    }))}>
                                         <defs>
-                                            <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                            <linearGradient id="fillReal" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="var(--color-real)" stopOpacity={0.8} />
+                                                <stop offset="95%" stopColor="var(--color-real)" stopOpacity={0.1} />
                                             </linearGradient>
-                                            <linearGradient id="colorForecast" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                            <linearGradient id="fillForecast" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="var(--color-forecast)" stopOpacity={0.8} />
+                                                <stop offset="95%" stopColor="var(--color-forecast)" stopOpacity={0.1} />
                                             </linearGradient>
                                         </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} vertical={false} />
+
+                                        <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
+
                                         <XAxis
-                                            dataKey="month"
-                                            stroke="#94a3b8"
-                                            fontSize={12}
+                                            dataKey="period"
                                             tickLine={false}
                                             axisLine={false}
-                                        />
-                                        <YAxis
-                                            stroke="#94a3b8"
-                                            fontSize={12}
-                                            tickLine={false}
-                                            axisLine={false}
-                                            tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(1)}k` : val}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f8fafc' }}
-                                            itemStyle={{ color: '#e2e8f0' }}
-                                            formatter={(value: any, name: any, props: any) => {
-                                                const isForecast = props.payload.isForecast;
-                                                return [value, isForecast ? "Previsão (un)" : "Vendas (un)"];
-                                            }}
+                                            tickMargin={8}
+                                            minTickGap={32}
+                                            interval={granularity === 'week' ? 3 : 0}
                                         />
 
-                                        {/* Reference line separating history from forecast */}
-                                        {/* We can do this by splitting lines or just rendering simple logic */}
+                                        <ChartTooltip
+                                            cursor={false}
+                                            content={<ChartTooltipContent labelFormatter={(val) => val} indicator="dot" />}
+                                        />
 
                                         <Area
-                                            type="monotone"
-                                            dataKey="sales"
-                                            stroke="#3b82f6"
+                                            dataKey="real"
+                                            type="natural"
+                                            fill="url(#fillReal)"
+                                            stroke="var(--color-real)"
                                             strokeWidth={2}
-                                            fillOpacity={1}
-                                            fill="url(#colorSales)"
-                                            connectNulls={false}
+                                            stackId="a"
                                         />
+                                        <Area
+                                            dataKey="forecast"
+                                            type="natural"
+                                            fill="url(#fillForecast)"
+                                            stroke="var(--color-forecast)"
+                                            strokeWidth={2}
+                                            strokeDasharray="4 4"
+                                            stackId="b"
+                                        />
+                                        <ChartLegend content={<ChartLegendContent />} />
                                     </AreaChart>
-                                </ResponsiveContainer>
+                                </ChartContainer>
                             </div>
                         </div>
 
@@ -148,7 +207,7 @@ export function ProductAnalysisSheet({ open, onOpenChange, product }: ProductAna
                                 <div className="text-2xl font-bold text-white">
                                     {data.stockCoverageDays} <span className="text-sm font-normal text-slate-500">dias</span>
                                 </div>
-                                <p className="text-xs text-slate-500">Baseado na média mensal de {data.avgMonthlySales} un.</p>
+                                <p className="text-xs text-slate-500">Baseado na média {granularity === 'week' ? 'semanal' : 'mensal'} de {data.avgMonthlySales} un.</p>
                             </div>
                         </div>
 

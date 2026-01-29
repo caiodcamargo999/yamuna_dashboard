@@ -237,7 +237,7 @@ export async function fetchSalesEvolution(
         if (channel === 'all') {
             console.log(`[SalesEvolution] Using GA4 for 'all' channel...`);
             // Use GA4 (Fast & Accurate using sales-history service)
-            history = await getProductSalesHistory(productName, granularity);
+            history = await getProductSalesHistory(productName, granularity, startDate);
 
             if (history.length === 0) {
                 console.warn(`[SalesEvolution] ⚠️ GA4 returned empty data. Trying Tiny as fallback...`);
@@ -267,11 +267,16 @@ export async function fetchSalesEvolution(
 /**
  * server action to fetch full analysis data for the modal
  */
-export async function fetchProductAnalysis(productId: string, productName: string) {
-    console.log(`[ProductAnalysis] Fetching data for ${productName} (${productId})`);
+export async function fetchProductAnalysis(
+    productId: string,
+    productName: string,
+    channel: 'all' | 'b2b' | 'b2c' = 'all',
+    granularity: 'month' | 'week' = 'month'
+) {
+    console.log(`[ProductAnalysis] Fetching data for ${productName} (${productId}) | Channel: ${channel} | Granularity: ${granularity}`);
 
     const [history, stockInfo] = await Promise.all([
-        getProductSalesHistory(productName),
+        fetchSalesEvolution('12months', channel, productName, granularity),
         getProductStock(productId)
     ]);
 
@@ -282,14 +287,18 @@ export async function fetchProductAnalysis(productId: string, productName: strin
     const combinedChartData = [...history, ...forecast];
 
     // Calculate trailing stats
-    const last6Months = history.slice(-6);
-    const avgMonthlySales = last6Months.length > 0
-        ? Math.round(last6Months.reduce((sum, m) => sum + m.sales, 0) / last6Months.length)
+    const last6Points = history.slice(-6);
+    const avgSales = last6Points.length > 0
+        ? Math.round(last6Points.reduce((sum, m) => sum + m.sales, 0) / last6Points.length)
         : 0;
 
     const currentStock = stockInfo?.stock || 0;
     // Stock Days Logic
-    const dailySales = avgMonthlySales / 30;
+    // If granularity is week, avgSales is weekly. Daily sales = avgSales / 7.
+    // If granularity is month, Daily sales = avgSales / 30.
+    const divisor = granularity === 'week' ? 7 : 30;
+    const dailySales = avgSales / divisor;
+
     const stockCoverageDays = dailySales > 0 ? Math.round(currentStock / dailySales) : 999;
 
     let stockStatus = 'ok';
@@ -299,8 +308,9 @@ export async function fetchProductAnalysis(productId: string, productName: strin
     return {
         chartData: combinedChartData,
         stock: currentStock,
-        avgMonthlySales,
+        avgMonthlySales: avgSales, // Renaming might break frontend, kept identifier but value depends on granularity
         stockCoverageDays,
-        stockStatus: stockInfo?.stock === undefined ? 'unknown' : stockStatus
+        stockStatus: stockInfo?.stock === undefined ? 'unknown' : stockStatus,
+        granularity // Pass back to help UI if needed
     };
 }

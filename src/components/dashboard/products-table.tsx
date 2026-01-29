@@ -122,13 +122,14 @@ export function ProductsTable({ initialData, currentLimit }: ProductsTableProps)
                                     <th className="px-6 py-4 text-right">Receita</th>
                                     <th className="px-6 py-4 text-right">% Rec.</th>
                                     <th className="px-6 py-4 text-right">Acum.</th>
+                                    <th className="px-6 py-4 text-right">Tendência (Mês Ant.)</th>
                                     <th className="px-6 py-4 text-right">Ações</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5 text-slate-300">
                                 {products.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                                        <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
                                             <div className="flex flex-col items-center gap-3">
                                                 <div className="p-3 rounded-full bg-slate-800/50">
                                                     <ShoppingCart className="text-slate-600" size={24} />
@@ -172,6 +173,16 @@ export function ProductsTable({ initialData, currentLimit }: ProductsTableProps)
                                                     <span className={`${isClassA ? 'text-emerald-500 font-bold' : isClassB ? 'text-amber-500' : 'text-slate-600'}`}>
                                                         {product.percentage.toFixed(1)}%
                                                     </span>
+                                                </td>
+                                                <td className="px-6 py-3 text-right font-mono text-xs">
+                                                    <div className={`flex items-center justify-end gap-1 ${product.trend.direction === 'up' ? 'text-emerald-400' :
+                                                        product.trend.direction === 'down' ? 'text-rose-400' : 'text-slate-500'
+                                                        }`}>
+                                                        {product.trend.direction === 'up' && <TrendingUp size={14} />}
+                                                        {product.trend.direction === 'down' && <TrendingDown size={14} />}
+                                                        {product.trend.direction === 'neutral' && <Minus size={14} />}
+                                                        <span>{product.trend.value.toFixed(1)}%</span>
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-3 text-right">
                                                     <Button

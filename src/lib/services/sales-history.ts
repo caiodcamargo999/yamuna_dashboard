@@ -25,7 +25,8 @@ export type MonthlySales = SalesDataPoint & {
 
 export async function getProductSalesHistory(
     productName: string,
-    granularity: 'month' | 'week' = 'month'
+    granularity: 'month' | 'week' = 'month',
+    customStartDate?: string
 ): Promise<MonthlySales[]> { // Returning MonthlySales for compat, but filled as SalesDataPoint
     if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN || !GA4_PROPERTY_ID) {
         console.warn("[SalesHistory] GA4 credentials missing. Returning empty history.");
@@ -37,19 +38,18 @@ export async function getProductSalesHistory(
         auth.setCredentials({ refresh_token: REFRESH_TOKEN });
         const analyticsData = google.analyticsdata({ version: "v1beta", auth });
 
-        // Date Range: Last 12 months for Monthly, Last 90 days for Weekly
+        // Date Range
         const today = new Date();
         const endDate = format(today, "yyyy-MM-dd");
-        let startDate = "";
+        let startDate = customStartDate;
         let dimension = "";
 
         if (granularity === 'month') {
-            startDate = format(subMonths(today, 12), "yyyy-MM-dd");
+            if (!startDate) startDate = format(subMonths(today, 12), "yyyy-MM-dd");
             dimension = "yearMonth";
         } else {
-            startDate = format(subMonths(today, 3), "yyyy-MM-dd"); // 3 months for weekly
-            dimension = "nthWeek"; // GA4 nthWeek is 0001..0053? Or use yearWeek?
-            // Safer to use 'yearWeek' or just 'date' and aggregate
+            if (!startDate) startDate = format(subMonths(today, 3), "yyyy-MM-dd"); // Default 3 months if not specified
+            // Safer to use 'isoYearIsoWeek' for consistent weekly aggregation
             dimension = "isoYearIsoWeek";
         }
 

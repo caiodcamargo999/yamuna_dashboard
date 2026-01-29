@@ -24,8 +24,16 @@ export default async function ProductsPage(props: Props) {
     const limitParam = parseInt(searchParams.limit || "20");
     const limit = isNaN(limitParam) ? 20 : Math.min(limitParam, 1000);
 
+    console.log(`[ProductsPage] 🔍 Search Params:`, { startDate, endDate, limit, channel: searchParams.channel });
+
     // Fetch Omnichannel products (All, B2B, B2C at once)
     const productsData = await fetchOmniProductsData(startDate, endDate, limit);
+
+    console.log(`[ProductsPage] 📦 Fetched Data:`, {
+        all: productsData.all?.length || 0,
+        b2b: productsData.b2b?.length || 0,
+        b2c: productsData.b2c?.length || 0
+    });
 
     return (
         <div className="flex flex-1 flex-col gap-8 p-4 pt-0">

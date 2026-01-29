@@ -11,11 +11,11 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLe
 const chartConfig = {
     sales: {
         label: "Vendas (un)",
-        color: "hsl(var(--chart-1))",
+        color: "hsl(217 91% 60%)", // Vibrant Blue
     },
     revenue: {
         label: "Receita (R$)",
-        color: "hsl(var(--chart-2))",
+        color: "hsl(142 76% 36%)", // Emerald Green
     },
 };
 
@@ -26,6 +26,7 @@ export function SalesEvolutionChart() {
     // The initial product load happens transparently or shows a different "initializing" state if needed,
     // but usually 'false' is safer to avoid infinite spinner if list is empty.
     const [loading, setLoading] = React.useState(false);
+    const [error, setError] = React.useState<string | null>(null);
     const [chartData, setChartData] = React.useState<any[]>([]);
 
     // Filters
@@ -64,23 +65,27 @@ export function SalesEvolutionChart() {
 
         async function loadEvolution() {
             setLoading(true);
+            setError(null);
 
-            // Add timeout to prevent infinite loading
+            // Increased timeout to 90s for slower connections/large datasets
             const timeoutId = setTimeout(() => {
-                console.error('[SalesEvolutionChart] Request timeout after 30s');
+                console.warn('[SalesEvolutionChart] ⚠️ Request timeout after 90s - data may still be loading');
                 setLoading(false);
+                setError('A requisição está demorando muito. Tente novamente ou selecione um período menor.');
                 setChartData([]);
-            }, 30000); // 30 second timeout
+            }, 90000); // 90 second timeout
 
             try {
-                console.log(`[SalesEvolutionChart] Fetching: product=${product}, channel=${channel}, granularity=${granularity}`);
+                console.log(`[SalesEvolutionChart] 🔄 Fetching: product=${product}, channel=${channel}, granularity=${granularity}`);
                 const data = await fetchSalesEvolution("6months", channel, product, granularity);
                 clearTimeout(timeoutId);
-                console.log(`[SalesEvolutionChart] Received ${data?.length || 0} data points`);
+                console.log(`[SalesEvolutionChart] ✅ Received ${data?.length || 0} data points`);
                 setChartData(data || []);
+                setError(null);
             } catch (err) {
                 clearTimeout(timeoutId);
-                console.error('[SalesEvolutionChart] Error:', err);
+                console.error('[SalesEvolutionChart] ❌ Error:', err);
+                setError('Erro ao carregar dados. Tente novamente.');
                 setChartData([]);
             } finally {
                 setLoading(false);
@@ -154,9 +159,32 @@ export function SalesEvolutionChart() {
                         Nenhum produto encontrado nos últimos 30 dias.
                     </div>
                 ) : loading ? (
-                    <div className="h-[300px] flex flex-col items-center justify-center gap-2">
+                    <div className="h-[300px] flex flex-col items-center justify-center gap-3">
                         <LoadingSpinner className="w-8 h-8" />
-                        <p className="text-sm text-muted-foreground">Carregando histórico de vendas...</p>
+                        <div className="text-center space-y-1">
+                            <p className="text-sm font-medium text-muted-foreground">Carregando histórico de vendas...</p>
+                            <p className="text-xs text-muted-foreground/60">Isso pode levar alguns segundos para grandes períodos</p>
+                        </div>
+                    </div>
+                ) : error ? (
+                    <div className="h-[300px] flex flex-col items-center justify-center gap-4 text-center px-4">
+                        <div className="p-3 rounded-full bg-destructive/10">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <div className="space-y-2">
+                            <p className="text-sm font-medium text-destructive">{error}</p>
+                            <button
+                                onClick={() => {
+                                    setError(null);
+                                    setProduct(products[0]?.name || '');
+                                }}
+                                className="text-xs text-primary hover:underline"
+                            >
+                                Tentar novamente
+                            </button>
+                        </div>
                     </div>
                 ) : chartData.length === 0 ? (
                     <div className="h-[300px] flex items-center justify-center text-muted-foreground">

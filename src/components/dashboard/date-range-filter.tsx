@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, CheckCircle2 } from "lucide-react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { format, subDays, parseISO } from "date-fns";
@@ -13,6 +13,8 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+
+const FILTER_STORAGE_KEY = "dashboard-date-filter";
 
 export function DateRangeFilter() {
     const router = useRouter();
@@ -29,21 +31,39 @@ export function DateRangeFilter() {
     });
 
     const [isOpen, setIsOpen] = useState(false);
+    const [showApplied, setShowApplied] = useState(false);
 
+    // Load from localStorage on mount
     useEffect(() => {
         const defaultEnd = new Date();
         const defaultStart = subDays(defaultEnd, 30);
 
-        const startStr = searchParams.get("start");
-        const endStr = searchParams.get("end");
-
-        // Parse logic needed because URL params are YYYY-MM-DD strings
-        // But Calendar expects Date objects
+        // Try to load from localStorage first
+        const stored = localStorage.getItem(FILTER_STORAGE_KEY);
         let start = defaultStart;
         let end = defaultEnd;
 
+        if (stored) {
+            try {
+                const { startStr, endStr } = JSON.parse(stored);
+                if (startStr && startStr !== '30daysAgo') {
+                    const [y, m, d] = startStr.split('-').map(Number);
+                    start = new Date(y, m - 1, d);
+                }
+                if (endStr && endStr !== 'today') {
+                    const [y, m, d] = endStr.split('-').map(Number);
+                    end = new Date(y, m - 1, d);
+                }
+            } catch (err) {
+                console.error('[DateRangeFilter] Failed to parse stored filter', err);
+            }
+        }
+
+        // Override with URL params if present
+        const startStr = searchParams.get("start");
+        const endStr = searchParams.get("end");
+
         if (startStr && startStr !== '30daysAgo') {
-            // Simple parsing assuming YYYY-MM-DD
             const [y, m, d] = startStr.split('-').map(Number);
             start = new Date(y, m - 1, d);
         }
@@ -60,20 +80,27 @@ export function DateRangeFilter() {
 
         setDate(newDate);
 
-        // Wait for selection to finish (both dates if range) or just update visual
-        // But to apply filter we generally want user to confirm or auto-apply.
-        // ShadCN Calendar with mode="range" returns { from, to }
-
         if (newDate.from && newDate.to) {
             const startStr = format(newDate.from, "yyyy-MM-dd");
             const endStr = format(newDate.to, "yyyy-MM-dd");
+
+            // Save to localStorage for persistence across pages
+            localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ startStr, endStr }));
 
             const params = new URLSearchParams(searchParams.toString());
             params.set("start", startStr);
             params.set("end", endStr);
 
+            console.log(`[DateRangeFilter] Applying filter: ${startStr} to ${endStr}`);
+            console.log(`[DateRangeFilter] New URL: ${pathname}?${params.toString()}`);
+
             setIsOpen(false);
-            router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+
+            // Show "Filter Applied" message
+            setShowApplied(true);
+            setTimeout(() => setShowApplied(false), 2000);
+
+            router.push(`${pathname}?${params.toString()}`);
         }
     };
 
@@ -116,6 +143,14 @@ export function DateRangeFilter() {
                     />
                 </PopoverContent>
             </Popover>
+
+            {/* Filter Applied Confirmation */}
+            {showApplied && (
+                <div className="flex items-center gap-2 text-xs text-emerald-500 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <CheckCircle2 className="h-3 w-3" />
+                    <span className="font-medium">Filtro Aplicado</span>
+                </div>
+            )}
         </div>
     );
 }

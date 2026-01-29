@@ -45,6 +45,16 @@ export function ProductsTable({ initialData, currentLimit }: ProductsTableProps)
     // Safe access in case initialData is undefined
     const products = initialData[activeChannel as keyof typeof initialData] || initialData.all || [];
 
+    // Debug: Log current state
+    useEffect(() => {
+        console.log(`[ProductsTable] Active Channel: ${activeChannel} | Products Count: ${products.length}`);
+        console.log(`[ProductsTable] Available Data:`, {
+            all: initialData.all?.length || 0,
+            b2b: initialData.b2b?.length || 0,
+            b2c: initialData.b2c?.length || 0
+        });
+    }, [activeChannel, products.length]);
+
     const handleChannelChange = (channel: string) => {
         setActiveChannel(channel);
 
@@ -134,7 +144,15 @@ export function ProductsTable({ initialData, currentLimit }: ProductsTableProps)
                                                 <div className="p-3 rounded-full bg-slate-800/50">
                                                     <ShoppingCart className="text-slate-600" size={24} />
                                                 </div>
-                                                <p>Nenhum produto encontrado com os filtros atuais.</p>
+                                                <div className="space-y-1">
+                                                    <p className="font-medium">Nenhum produto encontrado</p>
+                                                    <p className="text-xs text-slate-600">
+                                                        Canal: {activeChannel === 'all' ? 'Todos' : activeChannel === 'b2b' ? 'B2B (Empresas)' : 'B2C (Consumidor)'}
+                                                    </p>
+                                                    <p className="text-xs text-slate-600">
+                                                        Tente selecionar outro período ou canal
+                                                    </p>
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>

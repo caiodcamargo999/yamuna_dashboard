@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { createClient } from "@/lib/supabase/server";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
+import { GlobalFilterManager } from "@/components/global-filter-manager";
 import {
     SidebarInset,
     SidebarProvider,
@@ -101,6 +102,7 @@ export default async function DashboardLayout({
                 } as React.CSSProperties
             }
         >
+            <GlobalFilterManager />
             <AppSidebar user={userData} modules={modules} tenantName={tenantName} />
             <SidebarInset>
                 <SiteHeader />

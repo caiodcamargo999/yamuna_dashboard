@@ -120,14 +120,20 @@ export function ProductAnalysisSheet({ open, onOpenChange, product }: ProductAna
                             </div>
 
                             <div className="flex items-center gap-4 text-xs justify-end pb-2">
-                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500/50 border border-blue-500"></div> Realizado</div>
-                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500/50 border border-emerald-500 border-dashed"></div> Previsão</div>
+                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'hsl(217 91% 60%)', border: '1px solid hsl(217 91% 60%)' }}></div> Realizado</div>
+                                <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'hsl(142 76% 36% / 0.5)', border: '1px dashed hsl(142 76% 36%)' }}></div> Previsão</div>
                             </div>
 
                             <div className="w-full bg-slate-900/30 rounded-xl p-4 border border-white/5">
                                 <ChartContainer config={{
-                                    real: { label: "Realizado", color: "hsl(var(--chart-1))" },
-                                    forecast: { label: "Previsão", color: "hsl(var(--chart-2))" },
+                                    real: {
+                                        label: "Realizado",
+                                        color: "hsl(217 91% 60%)" // Vibrant Blue
+                                    },
+                                    forecast: {
+                                        label: "Previsão",
+                                        color: "hsl(142 76% 36%)" // Emerald Green
+                                    },
                                 }} className="aspect-auto h-[300px] w-full">
                                     <AreaChart data={data.chartData.map((d: any) => ({
                                         ...d,
@@ -138,12 +144,12 @@ export function ProductAnalysisSheet({ open, onOpenChange, product }: ProductAna
                                     }))}>
                                         <defs>
                                             <linearGradient id="fillReal" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="var(--color-real)" stopOpacity={0.8} />
-                                                <stop offset="95%" stopColor="var(--color-real)" stopOpacity={0.1} />
+                                                <stop offset="5%" stopColor="hsl(217 91% 60%)" stopOpacity={0.8} />
+                                                <stop offset="95%" stopColor="hsl(217 91% 60%)" stopOpacity={0.1} />
                                             </linearGradient>
                                             <linearGradient id="fillForecast" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="var(--color-forecast)" stopOpacity={0.8} />
-                                                <stop offset="95%" stopColor="var(--color-forecast)" stopOpacity={0.1} />
+                                                <stop offset="5%" stopColor="hsl(142 76% 36%)" stopOpacity={0.8} />
+                                                <stop offset="95%" stopColor="hsl(142 76% 36%)" stopOpacity={0.1} />
                                             </linearGradient>
                                         </defs>
 
@@ -167,7 +173,7 @@ export function ProductAnalysisSheet({ open, onOpenChange, product }: ProductAna
                                             dataKey="real"
                                             type="natural"
                                             fill="url(#fillReal)"
-                                            stroke="var(--color-real)"
+                                            stroke="hsl(217 91% 60%)"
                                             strokeWidth={2}
                                             stackId="a"
                                         />
@@ -175,7 +181,7 @@ export function ProductAnalysisSheet({ open, onOpenChange, product }: ProductAna
                                             dataKey="forecast"
                                             type="natural"
                                             fill="url(#fillForecast)"
-                                            stroke="var(--color-forecast)"
+                                            stroke="hsl(142 76% 36%)"
                                             strokeWidth={2}
                                             strokeDasharray="4 4"
                                             stackId="b"

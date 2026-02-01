@@ -49,3 +49,26 @@ export async function fetchSourceMediumData(startDate = "30daysAgo", endDate = "
         return data;
     }, CACHE_TTL.MEDIUM);
 }
+
+/**
+ * Fetch Email & SMS Performance (Edrone)
+ */
+export async function fetchEmailSmsData(startDate = "30daysAgo", endDate = "today") {
+    let startStr: string;
+    let endStr: string;
+
+    if (startDate === "30daysAgo") {
+        const now = new Date();
+        endStr = format(now, "yyyy-MM-dd");
+        startStr = format(subDays(now, 30), "yyyy-MM-dd");
+    } else {
+        startStr = startDate;
+        endStr = endDate === "today" ? format(new Date(), "yyyy-MM-dd") : endDate;
+    }
+
+    return withCache(`ga4:emailSms:${startStr}:${endStr}`, async () => {
+        const { getGA4EmailSmsPerformance } = await import("@/lib/services/ga4-reports");
+        console.log(`[Email/SMS] Fetching data for ${startStr} to ${endStr}`);
+        return await getGA4EmailSmsPerformance(startStr, endStr);
+    }, CACHE_TTL.MEDIUM);
+}

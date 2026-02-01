@@ -9,6 +9,7 @@ import { DateRangeFilter } from "@/components/dashboard/date-range-filter";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { SalesEvolutionChart } from "@/components/dashboard/sales-evolution-chart";
 import { SalesForecastSection } from "@/components/dashboard/sales-forecast-section";
+import { EmailSmsAnalysis } from "@/components/dashboard/email-sms-analysis";
 
 export const revalidate = 300;
 export const maxDuration = 300;
@@ -91,6 +92,11 @@ export default async function DashboardPage(props: Props) {
                 {/* Section 2: Sales Evolution (New) */}
                 <div className="w-full">
                     <SalesEvolutionChart />
+                </div>
+
+                {/* Email & SMS Analysis (Edrone) */}
+                <div className="w-full">
+                    <EmailSmsAnalysis startDate={startDate} endDate={endDate} />
                 </div>
 
                 {/* Section 3: Growth Metrics (Existing) */}

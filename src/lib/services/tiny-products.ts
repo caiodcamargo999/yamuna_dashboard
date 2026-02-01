@@ -1,4 +1,6 @@
 import { google } from "googleapis";
+import { format, startOfISOWeek } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { getTinyOrders } from "./tiny";
 import { normalizeProduct } from "./product-utils";
 
@@ -154,7 +156,7 @@ export async function getTinyProductHistory(
     });
 
     // Group by period
-    const historyMap = new Map<string, { date: string, sales: number, revenue: number }>();
+    const historyMap = new Map<string, { date: string, sortKey: string, sales: number, revenue: number }>();
 
     relevantItems.forEach(item => {
         const dateParts = item.date.split('/'); // dd/mm/yyyy
@@ -174,15 +176,16 @@ export async function getTinyProductHistory(
             key = `${dateParts[2]}-${dateParts[1]}`;
             sortKey = key;
         } else {
-            // Week logic (simple approximation)
-            const onejan = new Date(dateObj.getFullYear(), 0, 1);
-            const week = Math.ceil((((dateObj.getTime() - onejan.getTime()) / 86400000) + onejan.getDay() + 1) / 7);
-            key = `Sem ${week}/${dateParts[2].slice(2)}`;
-            sortKey = `${dateParts[2]}${week.toString().padStart(2, '0')}`;
+            // Week logic: Group by Start of Week
+            const startOfWeek = startOfISOWeek(dateObj);
+            // Format: "12/Mar"
+            key = format(startOfWeek, "dd/MMM", { locale: ptBR });
+            // Sort by Date (YYYYMMDD)
+            sortKey = format(startOfWeek, "yyyyMMdd");
         }
 
         if (!historyMap.has(key)) {
-            historyMap.set(key, { date: key, sales: 0, revenue: 0 });
+            historyMap.set(key, { date: key, sortKey, sales: 0, revenue: 0 });
         }
 
         const entry = historyMap.get(key)!;
@@ -190,23 +193,18 @@ export async function getTinyProductHistory(
         entry.revenue += item.revenue;
     });
 
-    const result = Array.from(historyMap.values()).map(h => ({
-        period: h.date,
-        dateStr: h.date, // simple ID
-        sales: h.sales,
-        revenue: h.revenue,
-        isForecast: false
-    }));
+    const result = Array.from(historyMap.values())
+        .map(h => ({
+            period: h.date,
+            dateStr: h.date,
+            sortKey: h.sortKey,
+            sales: h.sales,
+            revenue: h.revenue,
+            isForecast: false
+        }))
+        .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
-    // Sort by date (imperfect for 'Sem 3/24' string but okay effectively if we used sortKey logic, 
-    // but for simplicity returning as is, caller or chart often handles sorting by index if time series is continuous. 
-    // Ideally we sort here.)
-
-    // Sort logic
-    // ... skipping complex sort for brevity, usually chronological if map populated chronologically? 
-    // No, map insertion order depends on orders arrival.
-    // Let's rely on the fact that input orders were chronological?
-    return result.reverse(); // Tiny returns orders newest first usually
+    return result;
 }
 
 

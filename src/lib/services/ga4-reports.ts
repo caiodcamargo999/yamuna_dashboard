@@ -462,3 +462,132 @@ export async function getGA4DailySessions(startDate: string, endDate: string) {
         return null;
     }
 }
+
+/**
+ * Fetch Email & SMS Performance (Edrone specific)
+ * Filters for source=edrone OR medium=email OR medium=sms
+ */
+export async function getGA4EmailSmsPerformance(startDate: string, endDate: string) {
+    const analyticsData = getAnalyticsClient();
+    if (!analyticsData) {
+        return null;
+    }
+
+    const safeEndDate = getSafeEndDate(endDate);
+    console.log(`[GA4 Email/SMS] Fetching data from ${startDate} to ${safeEndDate}`);
+
+    try {
+        const report = await analyticsData.properties.runReport({
+            property: `properties/${GA4_PROPERTY_ID}`,
+            requestBody: {
+                dateRanges: [{ startDate, endDate: safeEndDate }],
+                dimensions: [
+                    { name: "sessionSource" },
+                    { name: "sessionMedium" },
+                    { name: "sessionCampaignName" }
+                ],
+                metrics: [
+                    { name: "sessions" },
+                    { name: "ecommercePurchases" },
+                    { name: "totalRevenue" }
+                ],
+                // Complex filter: (Source CONTAINS edrone OR sms) OR (Medium CONTAINS email OR sms)
+                // Note: SMS campaigns may have source='SMS_NEWSLETTER' with medium='edrone'
+                dimensionFilter: {
+                    orGroup: {
+                        expressions: [
+                            {
+                                filter: {
+                                    fieldName: "sessionSource",
+                                    stringFilter: { value: "edrone", matchType: "CONTAINS" }
+                                }
+                            },
+                            {
+                                filter: {
+                                    fieldName: "sessionSource",
+                                    stringFilter: { value: "sms", matchType: "CONTAINS" }
+                                }
+                            },
+                            {
+                                filter: {
+                                    fieldName: "sessionSource",
+                                    stringFilter: { value: "SMS", matchType: "CONTAINS" }
+                                }
+                            },
+                            {
+                                filter: {
+                                    fieldName: "sessionMedium",
+                                    stringFilter: { value: "email", matchType: "CONTAINS" }
+                                }
+                            },
+                            {
+                                filter: {
+                                    fieldName: "sessionMedium",
+                                    stringFilter: { value: "sms", matchType: "CONTAINS" }
+                                }
+                            },
+                            {
+                                filter: {
+                                    fieldName: "sessionMedium",
+                                    stringFilter: { value: "SMS", matchType: "CONTAINS" }
+                                }
+                            },
+                            {
+                                filter: {
+                                    fieldName: "sessionMedium",
+                                    stringFilter: { value: "text", matchType: "CONTAINS" }
+                                }
+                            }
+                        ]
+                    }
+                },
+                orderBys: [{ metric: { metricName: "totalRevenue" }, desc: true }]
+            }
+        });
+
+        const data = (report.data.rows || []).map((row: any) => {
+            const sessions = parseInt(row.metricValues?.[0]?.value || "0");
+            const purchases = parseInt(row.metricValues?.[1]?.value || "0");
+            const revenue = parseFloat(row.metricValues?.[2]?.value || "0");
+
+            return {
+                source: row.dimensionValues?.[0]?.value || "(not set)",
+                medium: row.dimensionValues?.[1]?.value || "(not set)",
+                campaign: row.dimensionValues?.[2]?.value || "(not set)",
+                sessions,
+                purchases,
+                revenue,
+                conversionRate: sessions > 0 ? (purchases / sessions) * 100 : 0,
+                avgTicket: purchases > 0 ? revenue / purchases : 0
+            };
+        });
+
+        // Log all unique mediums to debug SMS visibility
+        const uniqueMediums = [...new Set(data.map(d => d.medium))];
+        console.log(`[GA4 Email/SMS] Unique mediums found:`, uniqueMediums);
+        console.log(`[GA4 Email/SMS] Breakdown by medium:`,
+            uniqueMediums.map(m => ({
+                medium: m,
+                count: data.filter(d => d.medium === m).length,
+                revenue: data.filter(d => d.medium === m).reduce((sum, d) => sum + d.revenue, 0)
+            }))
+        );
+
+        const totals = data.reduce((acc, curr) => ({
+            sessions: acc.sessions + curr.sessions,
+            purchases: acc.purchases + curr.purchases,
+            revenue: acc.revenue + curr.revenue
+        }), { sessions: 0, purchases: 0, revenue: 0 });
+
+        console.log(`[GA4 Email/SMS] Found ${data.length} campaign rows. Total Revenue: R$ ${totals.revenue}`);
+
+        return {
+            campaigns: data,
+            totals
+        };
+
+    } catch (error: any) {
+        console.error("[GA4 Email/SMS] Error:", error.message);
+        return null;
+    }
+}

@@ -301,9 +301,13 @@ export async function fetchProductAnalysis(
 
     const stockCoverageDays = dailySales > 0 ? Math.round(currentStock / dailySales) : 999;
 
+    // Use centralized Stock Rules
     let stockStatus = 'ok';
-    if (stockCoverageDays < 15) stockStatus = 'critical';
-    else if (stockCoverageDays < 30) stockStatus = 'warning';
+    if (stockInfo?.stock !== undefined) {
+        // Import dynamically if needed, or better, change import at top
+        const { getStockStatus } = await import("@/lib/services/sales-forecast");
+        stockStatus = getStockStatus(stockCoverageDays);
+    }
 
     return {
         chartData: combinedChartData,

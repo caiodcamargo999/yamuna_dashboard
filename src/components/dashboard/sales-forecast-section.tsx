@@ -12,11 +12,11 @@ import { Badge } from "@/components/ui/badge";
 const chartConfig = {
     history: {
         label: "Histórico",
-        color: "hsl(var(--chart-1))",
+        color: "hsl(217 91% 60%)", // Vibrant Blue
     },
     forecast: {
         label: "Previsão",
-        color: "hsl(var(--chart-5))",
+        color: "hsl(270 95% 65%)", // Vibrant Purple
     },
 };
 
@@ -70,16 +70,32 @@ export function SalesForecastSection() {
     const chartData = React.useMemo(() => {
         if (!data?.chartData) return [];
 
-        return data.chartData.map((d: any) => ({
-            period: d.period || d.month,
-            // If it's forecast, put in forecast key, but also connect to last history point?
-            // Simpler: Just put value in one or the other.
-            history: !d.isForecast ? d.sales : undefined,
-            forecast: d.isForecast ? d.sales : undefined,
-            // Overlap point: The last history point should also start the forecast line? 
-            // For now, let's keep them distinct.
-            ...d
-        }));
+        // Find the index of the last history item (last non-forecast item)
+        const transitionIndex = data.chartData.findLastIndex((d: any) => !d.isForecast);
+
+        return data.chartData.map((d: any, i: number) => {
+            const isHistory = !d.isForecast;
+
+            // History series: Include all history points
+            let historyVal = isHistory ? d.sales : undefined;
+
+            // Forecast series: Include all forecast points AND the transition point (last history point)
+            // This ensures the line connects visually from the last history point to the first forecast point.
+            let forecastVal = d.isForecast ? d.sales : undefined;
+
+            if (i === transitionIndex && transitionIndex !== -1) {
+                // This is the "bridge" point. It belongs to history, but we also give it to forecast 
+                // so the forecast line starts here.
+                forecastVal = d.sales;
+            }
+
+            return {
+                period: d.period || d.month,
+                history: historyVal,
+                forecast: forecastVal,
+                ...d
+            };
+        });
     }, [data]);
 
     if (!mount) return null;
@@ -135,6 +151,7 @@ export function SalesForecastSection() {
                         </div>
 
                         {/* Chart */}
+                        {/* Chart */}
                         <ChartContainer config={chartConfig} className="aspect-auto h-[250px] w-full">
                             <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                                 <defs>
@@ -147,8 +164,13 @@ export function SalesForecastSection() {
                                         <stop offset="95%" stopColor="var(--color-forecast)" stopOpacity={0.1} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid vertical={false} />
-                                <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} />
+                                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
+                                <XAxis
+                                    dataKey="period"
+                                    tickLine={false}
+                                    axisLine={false}
+                                    tickMargin={8}
+                                />
                                 <YAxis tickLine={false} axisLine={false} hide />
                                 <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
 
@@ -158,7 +180,8 @@ export function SalesForecastSection() {
                                     name="Histórico"
                                     stroke="var(--color-history)"
                                     fill="url(#fillHistory)"
-                                    strokeWidth={2}
+                                    strokeWidth={3}
+                                    stackId="a"
                                 />
                                 <Area
                                     type="natural"
@@ -166,14 +189,15 @@ export function SalesForecastSection() {
                                     name="Previsão"
                                     stroke="var(--color-forecast)"
                                     fill="url(#fillForecast)"
-                                    strokeWidth={2}
+                                    strokeWidth={3}
                                     strokeDasharray="4 4"
+                                    stackId="a"
                                 />
                             </AreaChart>
                         </ChartContainer>
 
-                        <div className="text-xs text-muted-foreground text-center">
-                            * Projeção baseada em média ponderada e tendência linear dos últimos 6 meses.
+                        <div className="flex flex-col items-center gap-1 text-xs text-muted-foreground text-center">
+                            <p>* Projeção Inteligente: 60% Tendência Recente + 40% Sazonalidade (Ano Anterior).</p>
                         </div>
                     </div>
                 )}

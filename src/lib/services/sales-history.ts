@@ -1,6 +1,6 @@
 
 import { google } from "googleapis";
-import { format, subMonths, startOfMonth, endOfMonth, addMonths } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, addMonths, startOfISOWeek, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 const GA4_PROPERTY_ID = process.env.GA4_PROPERTY_ID;
@@ -102,7 +102,12 @@ export async function getProductSalesHistory(
                 sortable = dateStr;
             } else {
                 // dateStr: "202410" (ISO YearWeek)
-                label = `Sem ${dateStr.slice(4)}`;
+                // Use date-fns parse with "RRRRII" (ISO Year + ISO Week)
+                // Reference date new Date() is just a fallback, the pattern defines the date fully
+                const date = parse(dateStr, "RRRRII", new Date());
+
+                // Format: "12/Mar" (Start of that week)
+                label = format(startOfISOWeek(date), "dd/MMM", { locale: ptBR });
                 sortable = dateStr;
             }
 
